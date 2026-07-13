@@ -22,8 +22,16 @@ First real dapp: scan and revoke ERC-20 approvals on Base / Base Sepolia.
 - [x] Test data seeded on Base Sepolia from `0x6D48...639D`:
       - USDC -> Permit2, unlimited (tx `0xe311950871cc3d9e9365ef244c8c0e1d087058befb23b2d561f1bc2835786d15`)
       - WETH -> OnchainTrailBadges demo spender, 1.5 WETH (tx `0xe39a1714203fc9272764faaf723f08366b5672f33524146140f607b95101cbf9`)
-- [ ] Manual walkthrough in browser (connect wallet, revoke the two test approvals)
-- [ ] Stretch: batch revoke via multicall / EIP-5792 `sendCalls`
+- [x] Manual walkthrough in browser — user connected, revoked both test approvals;
+      allowances confirmed 0 on-chain (user nonce 50 -> 52 on Base Sepolia)
+- [x] Bugfix: SSR hydration mismatch (wallet state gated behind client mount)
+- [x] Bugfix: `writeContract` was not pinned to the selected chain, so revokes went to
+      whatever network the wallet was on (no-op txs to codeless addresses looked
+      "successful"). Fixed by passing `chainId` to `writeContract` + a wallet/app
+      network-mismatch warning banner with a Switch wallet button.
+- [ ] Stretch (not done): batch revoke via multicall / EIP-5792 `sendCalls`
+
+**PHASE 2 COMPLETE.**
 
 ## Notes
 
