@@ -58,6 +58,17 @@ Mainnet card points at the mainnet badges contract (same address as Sepolia).
       signature -> facilitator settled on-chain (gasless for payer) -> HTTP 200 report.
       Settlement tx `0x7c015cbfcefe0c3f67b6d856f3b7b16a7e9accc17a77130386abebbefe901b55`;
       balances moved 2.000->1.999 (payer) and 0->0.001 USDC (agent).
-- [ ] Optional: setAgentWallet (EIP-712 proof), public hosting + setAgentURI swap
+- [x] setAgentWallet on both networks: burner `0x2C7B...3abC` is the verified agent wallet.
+      EIP-712 consent signed by the burner (`sign-wallet.mjs`; domain ERC8004IdentityRegistry v1,
+      struct AgentWalletSet, deadline must be <= now+5min), tx sent by the owner wallet.
+      Sepolia tx `0x1144fa5a418019ae673d15f5bc7620f51a4fbace00b0c2c27b338fe8ead16c43`,
+      mainnet tx `0xe1bd33902d4821553db134b027aa5cfc16f810eebb08ea7bbfe981c272e89586`.
+- [x] Vercel-ready: app split into `app.js` (exported Express app) + `server.js` (local
+      bootstrap) + `api/index.js` (serverless entry) + `vercel.json` rewrite. Deploy needs
+      user's `vercel login`; set env `AGENT_ID` (and optionally `PAY_TO`, `PUBLIC_URL`).
+      After deploy: swap agent card to the public URL via `setAgentURI` if desired.
+- [x] Milestones extended to 5: + "First Mainnet Deploy", "First x402 Payment" — minted on
+      both networks (Sepolia #4 `0x89f48eb7...`, #5 `0xa5f29b3c...`; mainnet #4 `0xac1901d5...`,
+      #5 `0xfb68dbd8...`). /progress reports 5/5 earned.
 
-**PHASE 3 COMPLETE (incl. x402 stretch).**
+**PHASE 3 COMPLETE (incl. x402 stretch + mainnet + agent wallet).**
