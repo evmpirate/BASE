@@ -12,6 +12,18 @@ ERC-8004 onchain agent reporting OnchainTrail Badges progress.
 | register() tx | `0x902e49454bd2dbaa796d34596e3d05bed5b8c3df1f476dc14ae5baa421e34f22` |
 | setAgentURI() tx | `0xe8c0cd024f33af614af67180630073d1fc373fc9c886bb103eaf3232fce8ce20` |
 
+## Mainnet registration (2026-07-14, user-confirmed)
+
+| Item | Value |
+|------|-------|
+| Identity Registry (Base mainnet, proxy) | `0x8004A169FB4a3325136EB29fA0ceB6D2e539a432` (same impl as Sepolia) |
+| **agentId** | **58971**, owned by `0x6D48...639D` (dupcia.base.eth) |
+| register() tx | `0x0d4b555d9c70e9d30ca1396fd48de851a9b7c364df46bbbd8e3049d1f54f0769` |
+| setAgentURI() tx | `0x26027b155f14ec6c6a28fdedc45ea30bf2383ea40d73958f44cca951797ad1b9` |
+
+Card generator is now multi-chain: `node make-card.mjs [agentId] [chainId]` (84532 default, 8453 mainnet).
+Mainnet card points at the mainnet badges contract (same address as Sepolia).
+
 ## Design decisions
 
 - **agentURI is a `data:application/json;base64` URI** — the registration file (agent card)
