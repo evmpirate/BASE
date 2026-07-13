@@ -29,11 +29,20 @@ Practice project: first real NFT collection deploy on Base Sepolia.
 | Badge #1 | "First Deploy" → owned by `0x6D4843155412832dC3Fa9C59e593cdAfdf52639D` |
 | Contract owner | burner `0x2C7BDedfC428E8eFe4197325A47f91B82dC33abC` |
 
-## Mainnet path (when/if desired — costs real ETH, requires explicit confirmation)
+## Mainnet deployment (2026-07-14, user-confirmed)
 
-Same commands with `--rpc-url https://mainnet.base.org` (chain 8453, explorer basescan.org).
-Estimated cost at current Base gas prices: well under $1 for deploy + mint.
-Consider `transferOwnership(0x6D48...639D)` after deploy so the main wallet controls minting.
+| Item | Value |
+|------|-------|
+| Contract address | `0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab` — **same as Sepolia** (same deployer nonce) |
+| Explorer | https://basescan.org/address/0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab#code (verified) |
+| Badge #1 "First Deploy" | tx `0x9e7f67194825b50eb9950c3f831c73a295939f60d7c0cfcfddf0547c3a41347b` (from burner) |
+| Badge #2 "First Dapp" | tx `0xfc344e870dc5a02c4760228687e5d8b70c4b1fac6f755d8e193e446b966e322e` (from main wallet) |
+| Badge #3 "First Agent" | tx `0xbd0489f42ffb45e4c17f825b31890d68ceb407c9934dbf9e2438d4e725a59536` (from main wallet) |
+| Ownership | transferred to main wallet `0x6D48...639D`, tx `0xe59fcd2551a0e1189fc16798fa1d9badf94ae9532e45cf84ff3c292cc9318778` |
+
+Note: mints #2/#3 initially failed from the burner (flaky public RPC returned a stale nonce)
+and were re-sent from the main wallet after `transferOwnership` had landed. Total mainnet cost
+(funding + deploy + verify + 3 mints + ownership transfer) was well under 0.0001 ETH.
 
 ## Notes
 
