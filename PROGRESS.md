@@ -72,3 +72,16 @@ Mainnet card points at the mainnet badges contract (same address as Sepolia).
       #5 `0xfb68dbd8...`). /progress reports 5/5 earned.
 
 **PHASE 3 COMPLETE (incl. x402 stretch + mainnet + agent wallet).**
+
+## Public deployment (2026-07-14)
+
+- **Live URL:** https://trailkeeper-three.vercel.app (Vercel, project `trailkeeper`, alias stable)
+- Env: `CHAIN_ID=8453`, `AGENT_ID=58971`, `PUBLIC_URL=https://trailkeeper-three.vercel.app`
+- App made chain-aware (`CHAIN_ID` picks Base/Base Sepolia: viem chain, RPC, registry, labels)
+- Reads hardened for public RPC rate limits: Multicall3 (one eth_call for all badges) + 30s in-memory cache
+- Mainnet agent 58971 `agentURI` swapped from data: URI to the live URL,
+  tx `0xd648ea64ac01f4456b3d1872ed1e33c9ae9520ff98d5af987fd2a5e533ad094b`
+  (Sepolia agent 8073 keeps its fully on-chain data: URI card)
+- Public x402 E2E verified: paid GET /report on the live URL, settlement tx
+  `0x68ba4a2500590963f76badcee1730efece5c79ee8e86c65f35a31664e31bce28` (first attempt failed
+  inside the shared testnet facilitator — nonce collision, "replacement transaction underpriced" — retry succeeded)
