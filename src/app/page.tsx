@@ -237,6 +237,11 @@ export default function Home() {
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
 
+  // Wallet state only exists client-side (wagmi restores the session from
+  // localStorage), so render it after mount to avoid SSR hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 bg-neutral-950 px-6 py-10 text-neutral-100">
       <header className="mb-8 flex items-center justify-between">
@@ -244,7 +249,7 @@ export default function Home() {
           <h1 className="text-2xl font-bold">🧹 DustSweep</h1>
           <p className="text-sm text-neutral-400">Scan &amp; revoke ERC-20 approvals on Base</p>
         </div>
-        {isConnected && address && (
+        {mounted && isConnected && address && (
           <div className="flex items-center gap-3">
             <select
               value={chainId}
@@ -265,7 +270,13 @@ export default function Home() {
         )}
       </header>
 
-      {isConnected ? <Scanner /> : <ConnectPanel />}
+      {!mounted ? (
+        <p className="py-16 text-center text-neutral-500">Loading…</p>
+      ) : isConnected ? (
+        <Scanner />
+      ) : (
+        <ConnectPanel />
+      )}
     </main>
   );
 }
