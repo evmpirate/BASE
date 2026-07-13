@@ -14,7 +14,9 @@ Practice project: first real NFT collection deploy on Base Sepolia.
 - [x] Burner funded with 0.02 ETH from main wallet (tx `0xacc892b4794a5c1073896d1ce8b7dce82427112bac8164bd29d27a50c0e9d947`)
 - [x] Deployed to Base Sepolia
 - [x] Minted badge #1 "First Deploy" to `0x6D48...639D`, on-chain tokenURI JSON confirmed via `cast call` + base64 decode
-- [ ] Verify source on sepolia.basescan.org — **still waiting on BaseScan/Etherscan API key** (Blockscout verification attempted twice, their queue dropped both jobs — "Unknown UID")
+- [x] Source verified on sepolia.basescan.org (Etherscan v2 API, solc 0.8.30, optimizer 200 runs) — https://sepolia.basescan.org/address/0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab#code
+
+**PHASE 1 COMPLETE.**
 
 ## Deployment record
 
