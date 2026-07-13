@@ -45,3 +45,13 @@ First real dapp: scan and revoke ERC-20 approvals on Base / Base Sepolia.
   for a curated demo; a real product would use an indexer or approvals API (Etherscan,
   Alchemy, Revoke.cash-style) to discover every approval ever granted.
 - Read-only mainnet scanning is safe; revokes on mainnet cost real ETH and are gated in the UI.
+
+## Builder Code attribution (ERC-8021, Base mainnet, 2026-07-14)
+
+- Registered builder code `bc_9a7f6zpz` for the wallet via base.dev API (off-chain, free).
+- `attributed-revoke.mjs`: viem wallet client with `dataSuffix` from `ox/erc8021`
+  (`Attribution.toDataSuffix({ codes: ["bc_9a7f6zpz"] })` = 29-byte ERC-8021 suffix).
+- Sent one attributed tx on Base mainnet — DustSweep's core action `approve(Permit2, 0)` on USDC.
+  tx `0x8d5004ef2e3f7a47ce76baa4f80c3354b4a3cee32b6dd1987f913f5cc51bc008`, status success,
+  verified the suffix rides in calldata (`tx.input` ends with the suffix). Cost ~fraction of a cent.
+- Any future DustSweep revoke can carry this suffix by adding `dataSuffix` to its wagmi config.
