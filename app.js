@@ -98,9 +98,9 @@ app.get("/.well-known/agent-card.json", (_req, res) => {
       `Guardian of the OnchainTrail. Reports live achievement-badge progress for a Base builder journey by reading the OnchainTrailBadges (TRAIL) ERC-721 contract on ${CHAIN_ID === 8453 ? "Base" : "Base Sepolia"}.`,
     image: "https://sepolia.basescan.org/token/images/default.png",
     services: [
-      { name: "web", url: PUBLIC_URL },
-      { name: "progress-api", url: `${PUBLIC_URL}/progress` },
-      { name: "ens", value: "dupcia.base.eth" },
+      { name: "web", url: PUBLIC_URL, endpoint: PUBLIC_URL },
+      { name: "progress-api", url: `${PUBLIC_URL}/progress`, endpoint: `${PUBLIC_URL}/progress` },
+      { name: "ens", value: "dupcia.base.eth", endpoint: "https://www.base.org/name/dupcia" },
     ],
     registrations: AGENT_ID
       ? [{ agentId: AGENT_ID, agentRegistry: `eip155:${CHAIN_ID}:${IDENTITY_REGISTRY}` }]
