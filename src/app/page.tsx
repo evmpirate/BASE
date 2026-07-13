@@ -84,6 +84,10 @@ function RevokeButton({
             address: pair.token.address,
             functionName: "approve",
             args: [pair.spender.address, 0n],
+            // Force the target chain: wagmi will ask the wallet to switch
+            // networks instead of silently sending on whatever chain the
+            // wallet happens to be on.
+            chainId: chainId as typeof base.id,
           })
         }
         disabled={disabled}
@@ -111,8 +115,9 @@ function RevokeButton({
 }
 
 function Scanner() {
-  const { address } = useAccount();
+  const { address, chainId: walletChainId } = useAccount();
   const chainId = useChainId();
+  const { switchChain } = useSwitchChain();
   const [mainnetArmed, setMainnetArmed] = useState(false);
 
   const pairs: Pair[] = useMemo(() => {
@@ -159,6 +164,22 @@ function Scanner() {
           Rescan
         </button>
       </div>
+
+      {walletChainId !== undefined && walletChainId !== chainId && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-red-700/60 bg-red-900/20 px-4 py-3 text-sm text-red-200">
+          <span>
+            ⚠️ Your wallet is on <strong>chain {walletChainId}</strong>, but this app is scanning{" "}
+            <strong>{chainId === base.id ? "Base" : "Base Sepolia"}</strong>. Transactions would go to the wrong
+            network.
+          </span>
+          <button
+            onClick={() => switchChain({ chainId: chainId as typeof base.id })}
+            className="shrink-0 rounded-md bg-red-600 px-3 py-1.5 font-medium text-white hover:bg-red-500"
+          >
+            Switch wallet
+          </button>
+        </div>
+      )}
 
       {chainId === base.id && (
         <label className="flex items-center gap-2 rounded-lg border border-yellow-700/60 bg-yellow-900/20 px-4 py-3 text-sm text-yellow-200">
