@@ -31,7 +31,13 @@ First real dapp: scan and revoke ERC-20 approvals on Base / Base Sepolia.
       network-mismatch warning banner with a Switch wallet button.
 - [ ] Stretch (not done): batch revoke via multicall / EIP-5792 `sendCalls`
 
-**PHASE 2 COMPLETE.**
+- [x] Mainnet E2E (user-requested, real ETH): seeded USDC->Permit2 (unlimited,
+      tx `0xcd5245266352875e2a43e37759f289014ca7300b44ed83fac6ac394c625041dc`) and
+      WETH->Aerodrome (0.01, tx `0x9133b409043b193b32fa097587a42f2b7ccdaa94b4bf0a494ec0067030034754`);
+      user revoked both via the dapp with the mainnet-armed checkbox; allowances
+      confirmed 0 on-chain. Total cost (2 approves + 2 revokes) ~0.0000013 ETH.
+
+**PHASE 2 COMPLETE — verified on Base Sepolia and Base mainnet.**
 
 ## Notes
 
