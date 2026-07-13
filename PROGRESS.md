@@ -39,7 +39,13 @@ ERC-8004 onchain agent reporting OnchainTrail Badges progress.
 - [x] Badges #2 "First Dapp" (tx `0x6cec16ec7644ec1e2ac7e97df98fa26ddfc2f9a8eb6bb1c638537dc8858c9330`)
       and #3 "First Agent" (tx `0x5408481bfdadcc7761631c1d46bff52e3a7f37b536f96b1e7dcc12c3e9e94447`)
       minted — /progress reports all 3 milestones earned
-- [ ] Optional stretch: x402 payment on one endpoint (not started)
+- [x] x402 stretch: `GET /report` is a paid endpoint ($0.001 USDC, Base Sepolia,
+      packages `@x402/express` + `@x402/evm` + `@x402/core`, testnet facilitator
+      https://x402.org/facilitator, payTo = agent burner wallet). Client (`pay.mjs`,
+      `@x402/fetch`) paid from the main wallet: 402 challenge -> EIP-3009 authorization
+      signature -> facilitator settled on-chain (gasless for payer) -> HTTP 200 report.
+      Settlement tx `0x7c015cbfcefe0c3f67b6d856f3b7b16a7e9accc17a77130386abebbefe901b55`;
+      balances moved 2.000->1.999 (payer) and 0->0.001 USDC (agent).
 - [ ] Optional: setAgentWallet (EIP-712 proof), public hosting + setAgentURI swap
 
-**PHASE 3 CORE COMPLETE.**
+**PHASE 3 COMPLETE (incl. x402 stretch).**

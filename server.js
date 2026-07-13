@@ -1,4 +1,7 @@
 import express from "express";
+import { paymentMiddleware, x402ResourceServer } from "@x402/express";
+import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { HTTPFacilitatorClient } from "@x402/core/server";
 import { createPublicClient, http } from "viem";
 import { baseSepolia } from "viem/chains";
 
@@ -21,13 +24,42 @@ const badgesAbi = [
 
 const client = createPublicClient({ chain: baseSepolia, transport: http("https://sepolia.base.org") });
 
+// x402: /report is a paid endpoint. Payments (testnet USDC on Base Sepolia)
+// go to the agent's operational wallet; the free /progress stays free.
+const PAY_TO = process.env.PAY_TO ?? "0x2C7BDedfC428E8eFe4197325A47f91B82dC33abC";
+const facilitatorClient = new HTTPFacilitatorClient({ url: "https://x402.org/facilitator" });
+const resourceServer = new x402ResourceServer(facilitatorClient).register(
+  "eip155:84532",
+  new ExactEvmScheme(),
+);
+
 const app = express();
+
+app.use(
+  paymentMiddleware(
+    {
+      "GET /report": {
+        accepts: [
+          {
+            scheme: "exact",
+            price: "$0.001",
+            network: "eip155:84532", // Base Sepolia
+            payTo: PAY_TO,
+          },
+        ],
+        description: "Premium OnchainTrail report: badges with full on-chain metadata",
+        mimeType: "application/json",
+      },
+    },
+    resourceServer,
+  ),
+);
 
 app.get("/", (_req, res) => {
   res.json({
     agent: "TrailKeeper",
     purpose: "Reports OnchainTrail Badges progress for dupcia.base.eth's Base builder journey",
-    endpoints: ["/.well-known/agent-card.json", "/progress"],
+    endpoints: ["/.well-known/agent-card.json", "/progress", "/report (paid, x402, $0.001 USDC)"],
   });
 });
 
@@ -74,6 +106,40 @@ app.get("/progress", async (_req, res) => {
       badgesMinted: total,
       badges,
       journey: milestones.map((m) => ({ milestone: m, earned: badges.some((b) => b.name === m) })),
+    });
+  } catch (err) {
+    res.status(502).json({ error: "chain read failed", detail: String(err) });
+  }
+});
+
+// Premium report: everything /progress has, plus full on-chain metadata
+// (tokenURI) for each badge. Reachable only through an x402 payment.
+app.get("/report", async (_req, res) => {
+  try {
+    const uriAbi = [
+      { type: "function", name: "tokenURI", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "string" }] },
+    ];
+    const nextId = await client.readContract({ address: BADGES_ADDRESS, abi: badgesAbi, functionName: "nextTokenId" });
+    const total = Number(nextId) - 1;
+    const badges = [];
+    for (let id = 1; id <= total; id++) {
+      const [name, owner, uri] = await Promise.all([
+        client.readContract({ address: BADGES_ADDRESS, abi: badgesAbi, functionName: "badgeName", args: [BigInt(id)] }),
+        client.readContract({ address: BADGES_ADDRESS, abi: badgesAbi, functionName: "ownerOf", args: [BigInt(id)] }),
+        client.readContract({ address: BADGES_ADDRESS, abi: uriAbi, functionName: "tokenURI", args: [BigInt(id)] }),
+      ]);
+      const metadata = JSON.parse(Buffer.from(uri.split(",")[1], "base64").toString());
+      badges.push({ tokenId: id, name, owner, metadata });
+    }
+    res.json({
+      report: "OnchainTrail premium report",
+      generatedAt: new Date().toISOString(),
+      agentId: AGENT_ID,
+      collection: "OnchainTrail Badges (TRAIL)",
+      contract: BADGES_ADDRESS,
+      chain: "base-sepolia",
+      badgesMinted: total,
+      badges,
     });
   } catch (err) {
     res.status(502).json({ error: "chain read failed", detail: String(err) });

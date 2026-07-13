@@ -11,6 +11,10 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@x402/core": "^2.18.0",
+    "@x402/evm": "^2.18.0",
+    "@x402/express": "^2.18.0",
+    "@x402/fetch": "^2.18.0",
     "express": "^5.2.1",
     "viem": "^2.55.1"
   }
