@@ -16,7 +16,7 @@ Practice project: first real NFT collection deploy on Base Sepolia.
 - [x] Minted badge #1 "First Deploy" to `0x6D48...639D`, on-chain tokenURI JSON confirmed via `cast call` + base64 decode
 - [x] Source verified on sepolia.basescan.org (Etherscan v2 API, solc 0.8.30, optimizer 200 runs) — https://sepolia.basescan.org/address/0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab#code
 
-**PHASE 1 COMPLETE.**
+**PHASE 1 COMPLETE.** Badges #4 "First Mainnet Deploy" and #5 "First x402 Payment" minted later on both networks (5 total each).
 
 ## Deployment record
 
