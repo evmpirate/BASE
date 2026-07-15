@@ -110,3 +110,17 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   (price read $1921.19/ETH at call time) with a ~2% slippage buffer; simulated via `cast call` first.
 - Received exactly the simulated amount: 0.383909 USDC. tx
   `0x866c96fc43f92223a3e2ecbc95a5ede318a240ef7be02096afcbdd6b3db85c4c`
+
+## 2026-07-15 — EIP-2612 permit on native USDC (first-time mechanism)
+
+- Base's native USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`) supports EIP-2612
+  (`name="USD Coin"`, `version="2"`, has `nonces`/`DOMAIN_SEPARATOR`) alongside its EIP-3009 rails.
+- Wallet 0x6 signed a `Permit(owner,spender,value,nonce,deadline)` typed-data message **offline**
+  (`cast wallet sign --data`, no tx, no gas) approving the TrailKeeper agent burner
+  `0x2C7BDedfC428E8eFe4197325A47f91B82dC33abC` for 0.1 USDC.
+- The burner — not the owner — submitted `permit(...)` on-chain (owner never sent a transaction):
+  tx `0x2afd5fbca12e185d9aa45b2397c661f74308205ed5e994c647f4c13503b07d5d`. Approval event confirmed
+  owner=0x6, spender=burner, value=0.1 USDC.
+- Burner then pulled 0.05 USDC via `transferFrom` to close the lifecycle: tx
+  `0xd1967d0b07bd43b8a984961cea114c3f407e407adbbff5e3eec20aa82481e02b`. Remaining allowance 0.05 USDC,
+  owner's permit nonce incremented 5 -> 6.
