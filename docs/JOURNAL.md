@@ -49,3 +49,18 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
 - Lesson: any Multicall3 batch that should benefit the caller needs an explicit final leg
   (`transfer`/`safeTransferFrom`/etc.) routing results back to the EOA — sender-identity-sensitive
   calls do NOT see the EOA as `msg.sender` inside a batch.
+
+## 2026-07-15 — Basename text records + subname (first-time mechanism)
+
+- `dupcia.base.eth` node `0xae791437...55fc82c6`, registry `0xB94704422c2a1E396835A571837Aa5AE53285a95`,
+  resolver `0xC6d566A56A1aFf6508b41f6c90ff131615583BCD` (owner confirmed = wallet 0x6).
+- Text records set via resolver's own `multicall` (two `setText` in one tx):
+  `com.github` -> `evmpirate`, `url` -> `https://trailkeeper-three.vercel.app`.
+  tx `0xa8200f10f1560b2799177725ba8851a1ee4efe07d9cbd7af3f01384a6de92ea9`
+- Subname `trailkeeper.dupcia.base.eth` minted via registry `setSubnodeRecord`
+  (label = keccak256("trailkeeper"), owner = wallet 0x6, same resolver, ttl 0):
+  tx `0x3d580971e8e9383e1fe0d3aefcf52484dbad5fc48743f628121777dc1282c319`
+- Subname records (`addr` -> wallet 0x6, `url` -> trailkeeper URL), again via resolver multicall:
+  tx `0x19b982da9859cf70a620afe37526c0c7b2df404569ad5091bcd0abfa9da894b8`
+- Registry is standard ENS-shaped (Basenames) — subnames are free and owner-mintable, same pattern
+  amberforge used for `ambermind.evmpirate.base.eth`.
