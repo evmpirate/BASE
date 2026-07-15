@@ -124,3 +124,29 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
 - Burner then pulled 0.05 USDC via `transferFrom` to close the lifecycle: tx
   `0xd1967d0b07bd43b8a984961cea114c3f407e407adbbff5e3eec20aa82481e02b`. Remaining allowance 0.05 USDC,
   owner's permit nonce incremented 5 -> 6.
+
+## 2026-07-15 — Native L1->L2 deposit (first-time mechanism)
+
+- `scripts/l1l2-deposit.mjs` (viem `op-stack` extension, `buildDepositTransaction` +
+  `depositTransaction` against the OptimismPortal — no manual contract address needed).
+- Wallet 0x6 had 0.0137 ETH sitting on Ethereum L1 (pre-existing, not part of the Base journey so far).
+  Deposited 0.001 ETH: L1 tx `0x8ba641bb25e2a82ceb73abe537497d7a3f3f6914dfe41bbfc16dfae01f6e9dbb`,
+  derived L2 tx `0x0ed67e3e288c8b1a12810d39d0a794d8bc0b00bbe23444fb704df61c074eb79c` (sequencer replay,
+  ~2 minutes). Both legs reported `success`.
+- **Stale-read lesson (again)**: the script's own immediate post-receipt L2 balance read showed the
+  pre-deposit amount unchanged; a fresh `cast balance` call ~3s later showed the correct +0.001 ETH.
+  Public Base RPC nodes are load-balanced and briefly lag right after a receipt lands — always re-read
+  before trusting a "nothing changed" result.
+
+## 2026-07-15 — Native L2->L1 withdrawal initiated (first-time mechanism, in progress)
+
+- `scripts/l2l1-withdraw.mjs` (status/prove/finalize driver, viem `op-stack`, fault-proof era).
+- Initiated via a plain `L2StandardBridge.withdraw(l2Token=0xDead...dEAd0000 [native-ETH placeholder],
+  amount, minGasLimit=0, extraData=0x)` call on `0x4200...0010`, 0.001 ETH:
+  L2 tx `0xaf0e5785a5c572c762ebfd89b06df9c71fb8d81906f202354b2ca16c5e5904d3`
+- Status right after: `waiting-to-prove`. Same three-act lifecycle as amberforge's withdrawal
+  (prove once a dispute game includes it, then a 7-day challenge window, then finalize).
+- **RESUME POINT**: `cd ~/BASE/scripts && node l2l1-withdraw.mjs status 0xaf0e5785a5c572c762ebfd89b06df9c71fb8d81906f202354b2ca16c5e5904d3`
+  — when `ready-to-prove`: `PRIVATE_KEY=$(...) node l2l1-withdraw.mjs prove <hash>`; ~7 days after
+  proving, when `ready-to-finalize`: same with `finalize`. Wallet 0x6 has plenty of L1 ETH (~0.0127
+  after the deposit above) to cover L1 gas for both steps.

@@ -1,0 +1,9 @@
+{
+  "name": "base-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "viem": "^2.55.2"
+  }
+}
