@@ -64,3 +64,21 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   tx `0x19b982da9859cf70a620afe37526c0c7b2df404569ad5091bcd0abfa9da894b8`
 - Registry is standard ENS-shaped (Basenames) — subnames are free and owner-mintable, same pattern
   amberforge used for `ambermind.evmpirate.base.eth`.
+
+## 2026-07-15 — EAS schema + attestation (first-time mechanism)
+
+- EAS is an OP-Stack predeploy: SchemaRegistry `0x4200...0020`, EAS `0x4200...0021`.
+- Registered schema `string action,bytes32 txRef,address wallet` (resolver 0x0, revocable=true).
+  UID `0xe55f06091abd36404dcf739e5ca251654ce619da54eb3241bebee24cf34e4d9e`
+  tx `0xade70f6156fc1a4397c9cf9996ec37ff317df90201d5bad201f46febfdb647cf`
+  (note: the plain amberforge schema string `"string action,bytes32 txRef"` with resolver 0x0/revocable
+  true already existed globally — schema UID is a pure function of (schema, resolver, revocable), so
+  re-registering it reverts `AlreadyExists`; added a `wallet` field for a distinct schema.)
+- Attested a real record: action=`atomic-multicall-wrap-and-transfer`, txRef=the Multicall3 tx above,
+  wallet=0x6. UID `0x968a41ce20e2646168dba379ebc3b5c718f594dea0248c50582ab5ffa65dfd45`
+  tx `0x37b4cb0307dbc7d1e60752e4e2c5a512a0d5e75a41280be8d6892bfd095df818`
+- **Skipped**: a throwaway "scratch" attestation purely to demo `revoke()` — that is exactly the kind
+  of fabricated activity ruled out by house policy (don't spend real gas on a fake record just to
+  probe a mechanism). The registered schema is revocable, so a genuine revoke can happen later against
+  a real record if one is ever actually superseded — not manufactured on demand.
+- Lesson (repeat of amberforge's): bash `UID` is a readonly builtin — never use it as a variable name.
