@@ -220,3 +220,23 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
 - Verified live: `/progress` now reports chain `base` (mainnet), `/dashboard` and `/activity` both 200.
 - Repointed the mainnet ERC-8004 agentURI (agentId 58971) from the old Vercel URL to the new one:
   tx `0x7dd13159cdde514d0b3f2f7ae750f6ddb45efb87fea223b16e772feacf3cafe8`.
+
+## 2026-07-16 — Solana -> Base bridge (first-time mechanism for wallet 0x6, deliberately last)
+
+- User pasted a Solana mainnet private key in chat for this purpose. Decoded (base58, 64-byte
+  secret key) and saved to `~/.config/solana/base-0x6-mainnet.json` (chmod 600, outside any repo).
+  Pubkey `AXhfH3TTmjdwvA7Yi6apxMLgkWwkxj9bqTfB4ZiFdmyQ`, starting balance 0.0106758 SOL.
+  **Same advice as amberforge's precedent: rotate this key** — it was shared in plaintext chat,
+  so treat it as potentially exposed regardless of how it's stored now.
+- Used the official `base/bridge` repo (already cloned at `~/BASE2/base-bridge`, shared tooling)
+  CLI: `bun cli sol bridge bridge-sol --deploy-env mainnet --to 0x6D48...639D --amount 0.002
+  --payer-kp <keyfile> --pay-for-relay`.
+  First attempt at 0.005 SOL failed ("insufficient funds for rent" — bridging leaves too little
+  for the payer's own rent-exemption + relay fee out of a ~0.0107 SOL balance); 0.002 SOL succeeded.
+- Solana tx: `4hEbdpKyB74hB7Ca5dDrGXvvihoNuCWf62hAAfwY9ciLn5F9d44WDDg6W6JVPb2B1xbyFyHvwGStKXnL45tu3eyn`,
+  relayed automatically (`--pay-for-relay` covers it, no manual prove/relay step needed for this
+  direction — unlike Base->Solana, which does need it).
+  Confirmed: wSOL `0x311935Cd80B76769bF2ecC9D8Ab7635b2139cf82` on Base, balance 2,000,000 (9 decimals
+  = 0.002) at wallet 0x6. Solana wallet has ~0.00318 SOL left (rent-exempt reserve + margin).
+- Reverse leg (Base->Solana, needs burn+prove+relay, ~35min like amberforge's) not yet done —
+  open item if a full round trip is wanted.
