@@ -167,3 +167,17 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   (confirmed by exact balance math: burner's balance dropped by transferred-amount + gas, not just
   gas, since `cast call` simulation alone returned ambiguous empty `0x` for both success and no-op):
   tx `0x4575fe8167f993e7bf8f86a3ffc84112d121a64483dd086dd6fd0d5a85973be8`.
+
+## 2026-07-15 — Gas paid entirely in USDC (first-time mechanism)
+
+- `scripts/erc20-gas-v07-mainnet.mjs` — EntryPoint v0.7 `SimpleAccount` (via `permissionless`
+  + Pimlico's ERC-20 paymaster experimental helper), owner key = TrailKeeper burner.
+- Counterfactual account address `0x379258a271A2d95A1CBB55E1BeefDF2F0cf50De9`, funded with 0.3 USDC
+  from wallet 0x6 (tx `0x942f99be7450a5e707c82d14509b2e771ab5633e03c98c4f475d67655f3bd53b`) and
+  **zero ETH, ever**.
+- UserOp: `approve(Permit2, 0.1 USDC)` on the account's own USDC — gas paid via Pimlico's ERC-20
+  paymaster entirely out of the account's USDC balance: tx
+  `0xcbede249961fa00f1f05d4d48ad651b5bdd3eb899ea536b17e5d39294d760147`.
+  USDC balance 0.3 -> 0.294884 (cost ~0.005116 USDC, no ETH touched at any point). Allowance to
+  Permit2 confirmed set to 0.1 USDC.
+- Reused the same Pimlico API key amberforge already set up (account-level, not per-project).

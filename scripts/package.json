@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "ox": "^0.11.3",
+    "permissionless": "^0.3.7",
     "viem": "^2.55.2"
   }
 }
