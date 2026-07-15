@@ -100,3 +100,13 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   then `execute(WETH, 0, transfer(0x6,...), 0)` signed by the badge owner moved 0.00003 WETH back out
   — tx `0x0bb7a7ed8c3a3d521b9755a3aa4b2942dee036c3fbefc1447083c9c2b587e90d`. The NFT now has its own
   working wallet; sell the badge and its balance goes with it (same lesson amberforge learned with Cube #1).
+
+## 2026-07-15 — First DEX swap (first-time mechanism)
+
+- 0.0002 ETH -> USDC via Uniswap V3 `SwapRouter02` `0x2626664c2603336E57B271c5C0b26F421741e481`,
+  `exactInputSingle` (tokenIn=WETH predeploy, tokenOut=USDC `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`,
+  fee tier 500 = 0.05%, ETH sent directly via `msg.value` — router wraps it internally).
+- Min-out sanity-checked against the Chainlink ETH/USD feed `0x71041dddad3595F9CEd3DcCFBe3D1F4b0a16Bb70`
+  (price read $1921.19/ETH at call time) with a ~2% slippage buffer; simulated via `cast call` first.
+- Received exactly the simulated amount: 0.383909 USDC. tx
+  `0x866c96fc43f92223a3e2ecbc95a5ede318a240ef7be02096afcbdd6b3db85c4c`
