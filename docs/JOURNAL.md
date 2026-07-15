@@ -206,3 +206,17 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
 - Crontab: `41 */4 * * * /home/kajko/BASE/trailkeeper/cron-run.sh` (runs only while this
   machine/WSL instance is up). Burner key read from `trailkeeper/.env` (gitignored).
   Log: `trailkeeper/logs/cron.log` (gitignored).
+
+## 2026-07-16 — New Vercel project connected to the monorepo, mainnet agentURI repointed
+
+- User connected a fresh Vercel project (`evmpirates-projects/base`, Root Directory=`trailkeeper`)
+  to `evmpirate/BASE`, alias **https://base-ten-mauve.vercel.app** — replaces the old
+  `trailkeeper-three.vercel.app` (which was wired to the now-archived standalone repo).
+- Diagnosed via `vercel login`/`vercel inspect` (read-only) before touching anything: project had
+  zero env vars, so it defaulted to Base Sepolia. Added `CHAIN_ID=8453`, `AGENT_ID=58971`,
+  `PUBLIC_URL=https://base-ten-mauve.vercel.app` to Production, then `vercel --prod --yes` from the
+  repo root (Vercel CLI must be invoked one level above the linked project's Root Directory — running
+  it from inside `trailkeeper/` itself doubles the path and 404s).
+- Verified live: `/progress` now reports chain `base` (mainnet), `/dashboard` and `/activity` both 200.
+- Repointed the mainnet ERC-8004 agentURI (agentId 58971) from the old Vercel URL to the new one:
+  tx `0x7dd13159cdde514d0b3f2f7ae750f6ddb45efb87fea223b16e772feacf3cafe8`.
