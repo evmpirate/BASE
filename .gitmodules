@@ -1,0 +1,6 @@
+[submodule "onchain-trail-badges/lib/forge-std"]
+	path = onchain-trail-badges/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "onchain-trail-badges/lib/openzeppelin-contracts"]
+	path = onchain-trail-badges/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
