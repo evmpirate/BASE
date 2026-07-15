@@ -181,3 +181,14 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   USDC balance 0.3 -> 0.294884 (cost ~0.005116 USDC, no ETH touched at any point). Allowance to
   Permit2 confirmed set to 0.1 USDC.
 - Reused the same Pimlico API key amberforge already set up (account-level, not per-project).
+
+## 2026-07-15 — TrailKeeper agent Builder Code (first-time mechanism for this agent)
+
+- Registered via `POST api.base.dev/v1/agents/builder-codes` for the agent's own operational
+  wallet `0x2C7BDedfC428E8eFe4197325A47f91B82dC33abC` (distinct from DustSweep's app-level code
+  `bc_9a7f6zpz`): builder code **`bc_z2oi30bi`**, stored in `trailkeeper/builderCode.mjs`.
+- Wrote `trailkeeper/sentinel.mjs`: reads live badge-progress state, attests it via EAS (reusing
+  the schema wallet 0x6 registered earlier) with the attribution suffix attached. First real run
+  doubled as the attribution proof: tx `0x33f3d75c195761f937f8799284b734906a4306365ffcf445e94d77e369bcb233`,
+  calldata confirmed to end with the ERC-8021 suffix.
+- `trailkeeper/AGENT_README.md` documents the permanent attribution rule for this codebase.
