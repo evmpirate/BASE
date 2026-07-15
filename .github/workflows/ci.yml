@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Format check
+        run: forge fmt --check src test
+        working-directory: onchain-trail-badges
+
+      - name: Build
+        run: forge build
+        working-directory: onchain-trail-badges
+
+      - name: Test
+        run: forge test -vv
+        working-directory: onchain-trail-badges
+
+  dustsweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dustsweep/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: dustsweep
+
+      - name: Lint
+        run: npm run lint
+        working-directory: dustsweep
+
+  trailkeeper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: trailkeeper/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: trailkeeper
+
+      - name: Import smoke test
+        run: node -e "import('./app.js').then(()=>console.log('IMPORT_OK')).catch(e=>{console.error(e);process.exit(1)})"
+        working-directory: trailkeeper
