@@ -150,3 +150,20 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   — when `ready-to-prove`: `PRIVATE_KEY=$(...) node l2l1-withdraw.mjs prove <hash>`; ~7 days after
   proving, when `ready-to-finalize`: same with `finalize`. Wallet 0x6 has plenty of L1 ETH (~0.0127
   after the deposit above) to cover L1 gas for both steps.
+
+## 2026-07-15 — EIP-7702 delegation + sponsored tx (first-time mechanism)
+
+- Target: the TrailKeeper agent burner `0x2C7BDedfC428E8eFe4197325A47f91B82dC33abC` (previously a
+  plain EOA, no code). Implementation `Simple7702Account` `0xe6cae83bde06e4c305530e199d7217f42808555b`
+  (same one amberforge used — recovered/reused, verified as real deployed code on Base mainnet).
+- Burner signed its own EIP-7702 authorization offline (`cast wallet sign-auth`, authorization nonce
+  = burner's current nonce since the *sponsor*, not the burner, broadcasts the outer tx).
+- Wallet 0x6 sent the type-4 delegation tx (`to`=burner, empty calldata, `--auth <signed auth>`),
+  **paying the gas so the burner never needed ETH for its own delegation**:
+  tx `0x90981a20d36108f44596cbbaaeaf146d16827a1db06df8364e030bc00830dab4`.
+  Burner's code is now `0xef0100` + implementation address (the EIP-7702 delegation designator).
+- Burner then self-broadcast `execute(address,uint256,bytes)` on its own new smart-account code,
+  moving 0.000001 ETH out to wallet 0x6 — a real self-authorized call through the delegated logic
+  (confirmed by exact balance math: burner's balance dropped by transferred-amount + gas, not just
+  gas, since `cast call` simulation alone returned ambiguous empty `0x` for both success and no-op):
+  tx `0x4575fe8167f993e7bf8f86a3ffc84112d121a64483dd086dd6fd0d5a85973be8`.
