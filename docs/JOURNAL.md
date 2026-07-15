@@ -82,3 +82,21 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   probe a mechanism). The registered schema is revocable, so a genuine revoke can happen later against
   a real record if one is ever actually superseded — not manufactured on demand.
 - Lesson (repeat of amberforge's): bash `UID` is a readonly builtin — never use it as a variable name.
+
+## 2026-07-15 — ERC-6551 Token Bound Account for TRAIL Badge #1 (first-time mechanism)
+
+- Canonical registry `0x000000006551c19487814612e58FE06813775758`, `createAccount(implementation=
+  0x55266D75D1a14E4572138116Af39863Ed6596E7F, salt=0, chainId=8453, tokenContract=badges, tokenId=1)`
+  -> TBA `0xFD70573a90628dEB84C389706ea14E6CE33A63C8`
+  tx `0xaa23be72b61b0ac871ce690cd91d663e8160ee637cd2754e8846ab04b3405c23`
+- **Gotcha**: the registry deploys a bare minimal-proxy that delegates to an *AccountProxy* which is
+  itself uninitialized until `initialize(address implementation)` is called — before that, every call
+  silently "succeeds" with empty return data (delegatecall to the zero address). No error, no revert,
+  just no-ops; caught it because a `transfer` through `execute()` reported success but moved nothing.
+  Fixed by calling `initialize(0x41C8f39463A868d3A88af00cd0fe7102F30E44eC)` (Tokenbound AccountV3 impl),
+  tx `0xf9432bf20ae65e18635b5ab6e64d0a3df01d1346679fc91f3957846452410e8c` (emits ERC-1967 `Upgraded`).
+  After that, `token()` correctly reports (8453, badges contract, tokenId 1) and `owner()` = wallet 0x6.
+- Funded the TBA with 0.0001 WETH (tx `0xd7eecdfecd2af3d16a489095c13bb33ef5a97cc8a3e93a4c84915b6e8a940dca`),
+  then `execute(WETH, 0, transfer(0x6,...), 0)` signed by the badge owner moved 0.00003 WETH back out
+  — tx `0x0bb7a7ed8c3a3d521b9755a3aa4b2942dee036c3fbefc1447083c9c2b587e90d`. The NFT now has its own
+  working wallet; sell the badge and its balance goes with it (same lesson amberforge learned with Cube #1).
