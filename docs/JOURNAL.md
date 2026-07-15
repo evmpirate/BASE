@@ -192,3 +192,17 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   doubled as the attribution proof: tx `0x33f3d75c195761f937f8799284b734906a4306365ffcf445e94d77e369bcb233`,
   calldata confirmed to end with the ERC-8021 suffix.
 - `trailkeeper/AGENT_README.md` documents the permanent attribution rule for this codebase.
+
+## 2026-07-16 — Sentinel loop on cron (first-time mechanism, user-confirmed)
+
+- `trailkeeper/cron-run.sh`: same organic-cadence pattern as amberforge's AmberMind loop —
+  random 0-45min jitter, 40% random stand-down, hard cap of 2 actions/UTC-day, on top of
+  `sentinel.mjs`'s own real observation (nothing fires if there's nothing new to attest,
+  though currently every run attests the latest snapshot regardless of change — matches
+  amberforge's own design, could be tightened to only-on-change later).
+- **Confirmed with the user before installing** (installing a crontab that autonomously signs
+  mainnet transactions indefinitely is a different authorization class than a single bounded
+  action, even under the "up to $4, execute yourself" rule) — user said yes.
+- Crontab: `41 */4 * * * /home/kajko/BASE/trailkeeper/cron-run.sh` (runs only while this
+  machine/WSL instance is up). Burner key read from `trailkeeper/.env` (gitignored).
+  Log: `trailkeeper/logs/cron.log` (gitignored).
