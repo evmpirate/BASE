@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { erc20Abi, formatUnits, maxUint256 } from "viem";
 import {
   useAccount,
@@ -260,8 +260,13 @@ export default function Home() {
 
   // Wallet state only exists client-side (wagmi restores the session from
   // localStorage), so render it after mount to avoid SSR hydration mismatch.
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  // useSyncExternalStore (not useState+useEffect) is React's own recommended
+  // idiom for this — no subscription needed, snapshot just differs server/client.
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 bg-neutral-950 px-6 py-10 text-neutral-100">
