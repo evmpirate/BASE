@@ -4,15 +4,19 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { erc20Abi, formatUnits, maxUint256 } from "viem";
 import {
   useAccount,
+  useCapabilities,
   useChainId,
   useConnect,
   useDisconnect,
   useReadContracts,
+  useSendCalls,
   useSwitchChain,
+  useWaitForCallsStatus,
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
 import { base, baseSepolia } from "wagmi/chains";
+import { buildRevokeCalls, pairKey } from "@/lib/batch";
 import { EXPLORERS, SPENDERS, TOKENS, type SpenderEntry, type TokenEntry } from "@/lib/registry";
 
 type Pair = { token: TokenEntry; spender: SpenderEntry };
@@ -114,11 +118,75 @@ function RevokeButton({
   );
 }
 
+function BatchRevokeButton({
+  targets,
+  chainId,
+  mainnetArmed,
+  onSettled,
+}: {
+  targets: Pair[];
+  chainId: number;
+  mainnetArmed: boolean;
+  onSettled: () => void;
+}) {
+  const { sendCalls, data, isPending, error, reset } = useSendCalls();
+  const { isLoading: isConfirming, isSuccess } = useWaitForCallsStatus({
+    id: data?.id,
+    query: { enabled: Boolean(data?.id) },
+  });
+
+  // Atomic batching (EIP-5792 wallet_sendCalls) is a wallet capability; plain
+  // EOAs without it get a sequential eth_sendTransaction fallback instead.
+  const { data: capabilities } = useCapabilities({ chainId: chainId as typeof base.id });
+  const atomic = capabilities?.atomic?.status === "supported" || capabilities?.atomic?.status === "ready";
+
+  useEffect(() => {
+    if (isSuccess) onSettled();
+  }, [isSuccess, onSettled]);
+
+  const disabled =
+    targets.length === 0 || isPending || isConfirming || (chainId === base.id && !mainnetArmed);
+
+  return (
+    <div className="flex items-center justify-end gap-3">
+      <span className="text-xs text-neutral-500">
+        {atomic ? "1 wallet confirmation (atomic batch)" : "one tx per approval (wallet lacks batching)"}
+      </span>
+      <button
+        onClick={() =>
+          sendCalls({
+            calls: buildRevokeCalls(targets),
+            chainId: chainId as typeof base.id,
+            // Wallets without wallet_sendCalls get sequential transactions.
+            experimental_fallback: true,
+          })
+        }
+        disabled={disabled}
+        className="rounded-md bg-red-600/90 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {isPending
+          ? "Sign in wallet…"
+          : isConfirming
+            ? "Confirming…"
+            : isSuccess
+              ? "Revoked ✓"
+              : `Revoke selected (${targets.length})`}
+      </button>
+      {error && (
+        <button onClick={() => reset()} className="max-w-56 truncate text-xs text-red-400" title={error.message}>
+          {error.message.split("\n")[0]} (dismiss)
+        </button>
+      )}
+    </div>
+  );
+}
+
 function Scanner() {
   const { address, chainId: walletChainId } = useAccount();
   const chainId = useChainId();
   const { switchChain } = useSwitchChain();
   const [mainnetArmed, setMainnetArmed] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const pairs: Pair[] = useMemo(() => {
     const tokens = TOKENS[chainId] ?? [];
@@ -146,6 +214,23 @@ function Scanner() {
       }))
       .filter((f) => f.allowance > 0n);
   }, [data, pairs]);
+
+  // Selection only makes sense over rows that still have an allowance; drop
+  // stale keys after a rescan removes rows (e.g. right after a batch revoke).
+  const selectedTargets = useMemo(
+    () => findings.filter((f) => selected.has(pairKey(f.pair))).map((f) => f.pair),
+    [findings, selected],
+  );
+
+  const toggle = (key: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const allSelected = findings.length > 0 && findings.every((f) => selected.has(pairKey(f.pair)));
 
   return (
     <div className="flex flex-col gap-4">
@@ -206,6 +291,17 @@ function Scanner() {
           <table className="w-full text-sm">
             <thead className="bg-neutral-900 text-left text-neutral-400">
               <tr>
+                <th className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all"
+                    checked={allSelected}
+                    onChange={() =>
+                      setSelected(allSelected ? new Set() : new Set(findings.map((f) => pairKey(f.pair))))
+                    }
+                    className="h-4 w-4"
+                  />
+                </th>
                 <th className="px-4 py-3 font-medium">Token</th>
                 <th className="px-4 py-3 font-medium">Spender</th>
                 <th className="px-4 py-3 font-medium">Allowance</th>
@@ -214,7 +310,16 @@ function Scanner() {
             </thead>
             <tbody>
               {findings.map(({ pair, allowance }) => (
-                <tr key={`${pair.token.address}-${pair.spender.address}`} className="border-t border-neutral-800">
+                <tr key={pairKey(pair)} className="border-t border-neutral-800">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select ${pair.token.symbol} / ${pair.spender.name}`}
+                      checked={selected.has(pairKey(pair))}
+                      onChange={() => toggle(pairKey(pair))}
+                      className="h-4 w-4"
+                    />
+                  </td>
                   <td className="px-4 py-3">
                     <a
                       href={`${EXPLORERS[chainId]}/token/${pair.token.address}`}
@@ -242,6 +347,18 @@ function Scanner() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {findings.length > 1 && (
+        <BatchRevokeButton
+          targets={selectedTargets}
+          chainId={chainId}
+          mainnetArmed={mainnetArmed}
+          onSettled={() => {
+            setSelected(new Set());
+            refetch();
+          }}
+        />
       )}
 
       <p className="text-xs text-neutral-500">
