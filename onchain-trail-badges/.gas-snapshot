@@ -1,0 +1,6 @@
+OnchainTrailBadgesTest:test_MetadataBasics() (gas: 22210)
+OnchainTrailBadgesTest:test_NonOwnerCannotMint() (gas: 13889)
+OnchainTrailBadgesTest:test_OwnerCanMint() (gas: 100183)
+OnchainTrailBadgesTest:test_TokenURI() (gas: 1043297)
+OnchainTrailBadgesTest:test_TokenURIRevertsForNonexistentToken() (gas: 12903)
+TrailAnchorTest:test_constants() (gas: 12993)
