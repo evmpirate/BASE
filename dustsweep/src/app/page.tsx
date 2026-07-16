@@ -16,6 +16,7 @@ import {
   useWriteContract,
 } from "wagmi";
 import { base, baseSepolia } from "wagmi/chains";
+import { BUILDER_CODE, DATA_SUFFIX } from "@/lib/attribution";
 import { buildRevokeCalls, pairKey } from "@/lib/batch";
 import { EXPLORERS, SPENDERS, TOKENS, type SpenderEntry, type TokenEntry } from "@/lib/registry";
 
@@ -92,6 +93,8 @@ function RevokeButton({
             // networks instead of silently sending on whatever chain the
             // wallet happens to be on.
             chainId: chainId as typeof base.id,
+            // ERC-8021 builder-code attribution (per-call; config-level is ignored).
+            dataSuffix: DATA_SUFFIX,
           })
         }
         disabled={disabled}
@@ -365,7 +368,8 @@ function Scanner() {
 
       <p className="text-xs text-neutral-500">
         Note: this scans a curated matrix of {pairs.length} pairs via multicall. A production version would use an
-        indexer / approvals API to discover every approval ever granted.
+        indexer / approvals API to discover every approval ever granted. Transactions carry the ERC-8021 builder code{" "}
+        <code>{BUILDER_CODE}</code>.
       </p>
     </div>
   );
