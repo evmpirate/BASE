@@ -85,7 +85,7 @@ app.get("/", (_req, res) => {
   res.json({
     agent: "TrailKeeper",
     purpose: "Reports OnchainTrail Badges progress for dupcia.base.eth's Base builder journey",
-    endpoints: ["/.well-known/agent-card.json", "/progress", "/activity", "/dashboard", "/report (paid, x402, $0.001 USDC)"],
+    endpoints: ["/.well-known/agent-card.json", "/progress", "/activity", "/badges", "/dashboard", "/report (paid, x402, $0.001 USDC)"],
   });
 });
 
@@ -237,6 +237,71 @@ app.get("/activity", async (_req, res) => {
   }
 });
 
+// Badge gallery data: tokenId/name/owner plus the on-chain SVG image extracted
+// from tokenURI (the contract stores full metadata as a base64 data: URI).
+// Unlike /report this stays free — it exposes the images, not the full metadata.
+app.get("/badges.json", async (_req, res) => {
+  try {
+    const payload = await cached("badges.json", async () => {
+      const uriAbi = [
+        { type: "function", name: "tokenURI", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "string" }] },
+      ];
+      const nextId = await client.readContract({ address: BADGES_ADDRESS, abi: badgesAbi, functionName: "nextTokenId" });
+      const total = Number(nextId) - 1;
+      const calls = [];
+      for (let id = 1; id <= total; id++) {
+        calls.push(
+          { address: BADGES_ADDRESS, abi: badgesAbi, functionName: "badgeName", args: [BigInt(id)] },
+          { address: BADGES_ADDRESS, abi: badgesAbi, functionName: "ownerOf", args: [BigInt(id)] },
+          { address: BADGES_ADDRESS, abi: uriAbi, functionName: "tokenURI", args: [BigInt(id)] },
+        );
+      }
+      const results = await client.multicall({ contracts: calls, allowFailure: false });
+      const badges = [];
+      for (let id = 1; id <= total; id++) {
+        const [name, owner, uri] = results.slice((id - 1) * 3, id * 3);
+        const metadata = JSON.parse(Buffer.from(uri.split(",")[1], "base64").toString());
+        badges.push({ tokenId: id, name, owner, image: metadata.image });
+      }
+      return { chain: CFG.label, contract: BADGES_ADDRESS, explorer: CFG.explorer, badges };
+    });
+    res.json(payload);
+  } catch (err) {
+    res.status(502).json({ error: "chain read failed", detail: String(err) });
+  }
+});
+
+// Badge gallery — renders each badge's fully on-chain SVG. No build step,
+// same pattern as /dashboard.
+app.get("/badges", (_req, res) => {
+  res.type("html").send(`<!doctype html>
+<html><head><meta charset="utf-8"><title>TrailKeeper — badge gallery</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#0a0a0a;color:#e5e5e5;max-width:960px;margin:2rem auto;padding:0 1rem}
+h1{font-size:1.3rem} .sub{color:#888;font-size:.85rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin-top:1.5rem}
+.card{background:#151515;border:1px solid #2a2a2a;border-radius:8px;padding:1rem;text-align:center}
+.card img{width:100%;height:auto;border-radius:6px;background:#000}
+.card .name{margin:.6rem 0 .2rem;font-weight:600}
+.card .owner{font-family:ui-monospace,monospace;font-size:.75rem;color:#888}
+a{color:#7eb6ff}
+</style></head><body>
+<h1>TrailKeeper — badge gallery</h1>
+<p class="sub">Every image below is stored fully on-chain (base64 SVG inside <code>tokenURI</code>).</p>
+<div class="grid" id="grid">loading…</div>
+<script>
+fetch("/badges.json").then(r=>r.json()).then(d=>{
+  document.getElementById("grid").innerHTML = d.badges.map(b =>
+    '<div class="card"><img src="' + b.image + '" alt="' + b.name + '">' +
+    '<div class="name">#' + b.tokenId + ' ' + b.name + '</div>' +
+    '<div class="owner">' + b.owner.slice(0,10) + '…' + b.owner.slice(-6) + '</div>' +
+    '<a href="' + d.explorer + '/nft/' + d.contract + '/' + b.tokenId + '" target="_blank">explorer</a></div>'
+  ).join("") || "no badges yet";
+}).catch(e=>{document.getElementById("grid").textContent = "failed to load: " + e;});
+</script>
+</body></html>`);
+});
+
 // Minimal no-build activity panel — fetches /progress and /activity client-side.
 app.get("/dashboard", (_req, res) => {
   res.type("html").send(`<!doctype html>
@@ -249,6 +314,7 @@ h1{font-size:1.3rem} .card{background:#151515;border:1px solid #2a2a2a;border-ra
 a{color:#7eb6ff} .row{display:flex;justify-content:space-between;border-top:1px solid #222;padding:.4rem 0;font-size:.85rem}
 </style></head><body>
 <h1>TrailKeeper — onchain footprint</h1>
+<p><a href="/badges">badge gallery →</a></p>
 <div class="card"><div id="journey">loading…</div></div>
 <div class="card"><h2 style="font-size:1rem">Recent activity</h2><div id="activity">loading…</div></div>
 <script>
