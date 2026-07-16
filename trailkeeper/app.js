@@ -2,7 +2,7 @@ import express from "express";
 import { paymentMiddleware, x402ResourceServer } from "@x402/express";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, fallback, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { decodeTokenUri, journeyStatus, makeCache } from "./lib.js";
 
@@ -16,8 +16,8 @@ const PUBLIC_URL = process.env.PUBLIC_URL ?? `http://localhost:${PORT}`;
 const CHAIN_ID = process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : 84532;
 
 const CHAINS = {
-  84532: { chain: baseSepolia, rpc: "https://sepolia.base.org", registry: "0x8004A818BFB912233c491871b3d84c89A494BD9e", label: "base-sepolia", deployBlock: 44105184n, explorer: "https://sepolia.basescan.org" },
-  8453: { chain: base, rpc: "https://mainnet.base.org", registry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", label: "base", deployBlock: 48597020n, explorer: "https://basescan.org" },
+  84532: { chain: baseSepolia, rpc: "https://sepolia.base.org", fallbackRpcs: ["https://base-sepolia-rpc.publicnode.com"], registry: "0x8004A818BFB912233c491871b3d84c89A494BD9e", label: "base-sepolia", deployBlock: 44105184n, explorer: "https://sepolia.basescan.org" },
+  8453: { chain: base, rpc: "https://mainnet.base.org", fallbackRpcs: ["https://base-rpc.publicnode.com", "https://base.llamarpc.com"], registry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", label: "base", deployBlock: 48597020n, explorer: "https://basescan.org" },
 };
 const CFG = CHAINS[CHAIN_ID];
 if (!CFG) throw new Error(`unsupported CHAIN_ID ${CHAIN_ID}`);
@@ -35,8 +35,12 @@ const badgesAbi = [
 ];
 
 // batch:true folds parallel reads into a single JSON-RPC batch request —
-// public Base RPCs rate-limit bursts of individual calls.
-const defaultClient = createPublicClient({ chain: CFG.chain, transport: http(CFG.rpc, { batch: true }) });
+// public Base RPCs rate-limit bursts of individual calls. The fallback
+// transport keeps the official RPC first (rank:false = fixed order) and only
+// moves down the list when a request errors; retryCount:1 per transport so a
+// flaky node fails over quickly instead of burning retries in place.
+const transports = [CFG.rpc, ...CFG.fallbackRpcs].map((url) => http(url, { batch: true, retryCount: 1 }));
+const defaultClient = createPublicClient({ chain: CFG.chain, transport: fallback(transports, { rank: false }) });
 
 // x402: /report is a paid endpoint. Payments stay on Base Sepolia testnet USDC
 // regardless of CHAIN_ID (the x402.org facilitator is testnet-only; mainnet
