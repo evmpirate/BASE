@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🧹 DustSweep
 
-## Getting Started
+Approval hygiene for Base: scan a wallet's ERC-20 approvals **and Permit2 sub-allowances**, then revoke them — one at a time or all at once.
 
-First, run the development server:
+## Features
+
+- **Two-layer scan** — classic `allowance(owner, spender)` on a curated token/spender matrix, plus Permit2's own allowance book (`allowance(owner, token, spender)` → amount/expiry). Revoking the ERC-20 approval alone does not clear Permit2 grants; this shows both.
+- **Batch revoke (EIP-5792)** — select rows and clear them in a single wallet confirmation via `wallet_sendCalls`; wallets without batching get a sequential fallback automatically.
+- **Permit2 lockdown** — zero every Permit2 grant in one transaction using Permit2's native `lockdown()`.
+- **Scan any token** — paste an address; symbol/decimals are resolved on-chain and the token joins both scan layers.
+- **Risk-first ordering** — unlimited approvals surface at the top.
+- **Wrong-network guard** — writes are pinned to the selected chain; a mismatch banner offers a one-click switch.
+- **Mainnet safety** — Base mainnet revokes stay disabled behind an explicit arm checkbox.
+- **ERC-8021 attribution** — every revoke carries the registered builder code `bc_9a7f6zpz` as a calldata suffix.
+
+## Chains
+
+Base (8453) and Base Sepolia (84532). The registry in `src/lib/registry.ts` is hand-curated and verified on-chain.
+
+## Development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev        # http://localhost:3000
+npm test           # vitest suite for src/lib
+npm run typecheck
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Part of the [BASE monorepo](https://github.com/evmpirate/BASE).

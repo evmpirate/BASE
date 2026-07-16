@@ -14,8 +14,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DustSweep",
-  description: "Scan and revoke ERC-20 token approvals on Base",
+  title: "DustSweep — approval hygiene for Base",
+  description:
+    "Scan and revoke ERC-20 approvals and Permit2 sub-allowances on Base. Batch revoke in one confirmation via EIP-5792.",
+  openGraph: {
+    title: "DustSweep",
+    description: "Scan & revoke ERC-20 approvals and Permit2 sub-allowances on Base.",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
