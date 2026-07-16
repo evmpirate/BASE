@@ -105,6 +105,35 @@ test("/healthz reports degraded with 503 when the RPC head lags", async () => {
   });
 });
 
+test("chain endpoints ride out an RPC outage by serving stale data", async () => {
+  let t = 0;
+  let healthy = true;
+  const flaky = {
+    async readContract() {
+      if (!healthy) throw new Error("rpc down");
+      return 2n;
+    },
+    async multicall() {
+      if (!healthy) throw new Error("rpc down");
+      return ["First Deploy", OWNER];
+    },
+  };
+  await withServer({ client: flaky, now: () => t }, async (base) => {
+    const fresh = await (await fetch(`${base}/progress`)).json();
+    assert.equal(fresh.badgesMinted, 1);
+
+    healthy = false;
+    t = 60_000; // past the 30s TTL, inside the 10min stale window
+    const stale = await fetch(`${base}/progress`);
+    assert.equal(stale.status, 200);
+    assert.deepEqual(await stale.json(), fresh);
+
+    t = 11 * 60_000; // beyond ttl+maxStale — outage becomes visible
+    const dead = await fetch(`${base}/progress`);
+    assert.equal(dead.status, 502);
+  });
+});
+
 test("/healthz reports unreachable with 503 when the RPC errors", async () => {
   const client = fakeClient({ blockError: new Error("connect ETIMEDOUT") });
   await withServer({ client }, async (base) => {
