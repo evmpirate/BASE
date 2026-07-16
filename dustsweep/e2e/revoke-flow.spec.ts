@@ -7,7 +7,12 @@ import { test, expect } from "@playwright/test";
 // Prereq: anvil fork on :8545 at FORK_BLOCK=48705000.
 
 test("connect, switch to Base, see the real Permit2 grant", async ({ page }) => {
-  await page.goto("/");
+  // ?e2e=1 forces the mock connector + fork RPC client-side (belt-and-braces
+  // with NEXT_PUBLIC_E2E, which the dev server also sets).
+  await page.goto("/?e2e=1");
+
+  // Page loaded at all?
+  await expect(page.getByRole("heading", { name: /DustSweep/i })).toBeVisible();
 
   // Connect the mock wallet.
   await page.getByRole("button", { name: /Connect Mock Connector/i }).click();
