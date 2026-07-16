@@ -16,14 +16,14 @@ const PORT = process.env.PORT ?? 4021;
 const PUBLIC_URL = process.env.PUBLIC_URL ?? `http://localhost:${PORT}`;
 const CHAIN_ID = process.env.CHAIN_ID ? Number(process.env.CHAIN_ID) : 84532;
 
-const CHAINS = {
+export const CHAINS = {
   84532: { chain: baseSepolia, rpc: "https://sepolia.base.org", fallbackRpcs: ["https://base-sepolia-rpc.publicnode.com"], registry: "0x8004A818BFB912233c491871b3d84c89A494BD9e", label: "base-sepolia", deployBlock: 44105184n, explorer: "https://sepolia.basescan.org" },
   8453: { chain: base, rpc: "https://mainnet.base.org", fallbackRpcs: ["https://base-rpc.publicnode.com", "https://base.llamarpc.com"], registry: "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432", label: "base", deployBlock: 48597020n, explorer: "https://basescan.org" },
 };
 const CFG = CHAINS[CHAIN_ID];
 if (!CFG) throw new Error(`unsupported CHAIN_ID ${CHAIN_ID}`);
 
-const BADGES_ADDRESS = "0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab";
+export const BADGES_ADDRESS = "0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab";
 const IDENTITY_REGISTRY = CFG.registry;
 const AGENT_ID = process.env.AGENT_ID ? Number(process.env.AGENT_ID) : null;
 const OWNER = "0x6D4843155412832dC3Fa9C59e593cdAfdf52639D"; // dupcia.base.eth
