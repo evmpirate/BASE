@@ -26,6 +26,7 @@ const BADGES_ADDRESS = "0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab";
 const IDENTITY_REGISTRY = CFG.registry;
 const AGENT_ID = process.env.AGENT_ID ? Number(process.env.AGENT_ID) : null;
 const OWNER = "0x6D4843155412832dC3Fa9C59e593cdAfdf52639D"; // dupcia.base.eth
+const HEALTH_MAX_LAG_SECONDS = 60;
 
 const badgesAbi = [
   { type: "function", name: "nextTokenId", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
@@ -35,7 +36,7 @@ const badgesAbi = [
 
 // batch:true folds parallel reads into a single JSON-RPC batch request —
 // public Base RPCs rate-limit bursts of individual calls.
-const client = createPublicClient({ chain: CFG.chain, transport: http(CFG.rpc, { batch: true }) });
+const defaultClient = createPublicClient({ chain: CFG.chain, transport: http(CFG.rpc, { batch: true }) });
 
 // x402: /report is a paid endpoint. Payments stay on Base Sepolia testnet USDC
 // regardless of CHAIN_ID (the x402.org facilitator is testnet-only; mainnet
@@ -48,11 +49,18 @@ const resourceServer = new x402ResourceServer(facilitatorClient).register(
   new ExactEvmScheme(),
 );
 
+// Factory so tests can inject a fake chain client and clock; production
+// entry points use the default export built from the real client below.
+export function makeApp({ client = defaultClient, now = Date.now } = {}) {
 const app = express();
 
 // Chain state changes rarely (badge mints); a short cache keeps us clear of
-// public-RPC rate limits even under bursts of traffic.
-const cached = makeCache(30_000);
+// public-RPC rate limits even under bursts of traffic. Cache TTL and the
+// Cache-Control max-age on chain-backed JSON endpoints are kept in step:
+// clients may reuse a payload exactly as long as the server itself would.
+const CACHE_TTL_MS = 30_000;
+const cached = makeCache(CACHE_TTL_MS);
+const chainCacheHeaders = (res) => res.set("Cache-Control", `public, max-age=${CACHE_TTL_MS / 1000}`);
 
 app.use(
   paymentMiddleware(
@@ -78,12 +86,14 @@ app.get("/", (_req, res) => {
   res.json({
     agent: "TrailKeeper",
     purpose: "Reports OnchainTrail Badges progress for dupcia.base.eth's Base builder journey",
-    endpoints: ["/.well-known/agent-card.json", "/progress", "/activity", "/badges", "/dashboard", "/report (paid, x402, $0.001 USDC)"],
+    endpoints: ["/.well-known/agent-card.json", "/progress", "/activity", "/badges", "/dashboard", "/healthz", "/report (paid, x402, $0.001 USDC)"],
   });
 });
 
-// ERC-8004 registration file / agent card.
+// ERC-8004 registration file / agent card. Contents only change on
+// redeploys, so it can be cached longer than the chain-backed endpoints.
 app.get("/.well-known/agent-card.json", (_req, res) => {
+  res.set("Cache-Control", "public, max-age=300");
   res.json({
     type: "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
     name: "TrailKeeper",
@@ -133,6 +143,7 @@ app.get("/progress", async (_req, res) => {
       journey: journeyStatus(milestones, badges),
     };
     });
+    chainCacheHeaders(res);
     res.json(payload);
   } catch (err) {
     let c = err, chain = [];
@@ -178,6 +189,8 @@ app.get("/report", async (_req, res) => {
       badges,
     };
     });
+    // Paid response — intermediaries must not cache what others paid for.
+    res.set("Cache-Control", "no-store");
     res.json(payload);
   } catch (err) {
     res.status(502).json({ error: "chain read failed", detail: String(err) });
@@ -224,6 +237,7 @@ app.get("/activity", async (_req, res) => {
       );
       return { chain: CFG.label, events: withTime.reverse() };
     });
+    chainCacheHeaders(res);
     res.json(payload);
   } catch (err) {
     res.status(502).json({ error: "chain read failed", detail: String(err) });
@@ -258,6 +272,7 @@ app.get("/badges.json", async (_req, res) => {
       }
       return { chain: CFG.label, contract: BADGES_ADDRESS, explorer: CFG.explorer, badges };
     });
+    chainCacheHeaders(res);
     res.json(payload);
   } catch (err) {
     res.status(502).json({ error: "chain read failed", detail: String(err) });
@@ -326,4 +341,31 @@ fetch("/activity").then(r=>r.json()).then(a=>{
 </body></html>`);
 });
 
-export default app;
+// Liveness + RPC health. Base seals a block every ~2s, so if the latest
+// block's timestamp trails the wall clock by more than the threshold, the
+// RPC node we hit is stale (public Base RPCs are load-balanced and some
+// nodes lag) — report degraded so an uptime monitor can flag it.
+app.get("/healthz", async (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  try {
+    const block = await client.getBlock({ blockTag: "latest" });
+    // Clamped at 0: a marginally future timestamp just means clock skew.
+    const blockLagSeconds = Math.max(0, Math.round(now() / 1000 - Number(block.timestamp)));
+    const healthy = blockLagSeconds <= HEALTH_MAX_LAG_SECONDS;
+    res.status(healthy ? 200 : 503).json({
+      status: healthy ? "ok" : "degraded",
+      chain: CFG.label,
+      rpc: CFG.rpc,
+      latestBlock: Number(block.number),
+      blockLagSeconds,
+      maxLagSeconds: HEALTH_MAX_LAG_SECONDS,
+    });
+  } catch (err) {
+    res.status(503).json({ status: "unreachable", chain: CFG.label, rpc: CFG.rpc, error: String(err).split("\n")[0] });
+  }
+});
+
+return app;
+}
+
+export default makeApp();
