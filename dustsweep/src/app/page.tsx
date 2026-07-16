@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { erc20Abi, formatUnits, maxUint256 } from "viem";
+import { erc20Abi, formatUnits, isAddress, maxUint256 } from "viem";
 import {
   useAccount,
   useCapabilities,
   useChainId,
+  useConfig,
   useConnect,
   useDisconnect,
   useReadContracts,
@@ -15,6 +16,7 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
+import { readContracts } from "wagmi/actions";
 import { base, baseSepolia } from "wagmi/chains";
 import { BUILDER_CODE, DATA_SUFFIX } from "@/lib/attribution";
 import { buildRevokeCalls, pairKey } from "@/lib/batch";
@@ -191,7 +193,82 @@ function BatchRevokeButton({
   );
 }
 
-function Permit2Section({ chainId, mainnetArmed }: { chainId: number; mainnetArmed: boolean }) {
+function AddTokenForm({
+  chainId,
+  known,
+  onAdd,
+}: {
+  chainId: number;
+  known: TokenEntry[];
+  onAdd: (t: TokenEntry) => void;
+}) {
+  const config = useConfig();
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const trimmed = input.trim();
+  const duplicate = known.some((t) => t.address.toLowerCase() === trimmed.toLowerCase());
+  const valid = isAddress(trimmed) && !duplicate;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!valid || busy) return;
+    const address = trimmed as `0x${string}`;
+    setBusy(true);
+    setFailed(false);
+    try {
+      const [symbol, decimals] = await readContracts(config, {
+        allowFailure: false,
+        contracts: [
+          { abi: erc20Abi, address, functionName: "symbol", chainId },
+          { abi: erc20Abi, address, functionName: "decimals", chainId },
+        ],
+      });
+      onAdd({ symbol, address, decimals });
+      setInput("");
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="flex items-center gap-2">
+      <input
+        value={input}
+        onChange={(e) => {
+          setInput(e.target.value);
+          setFailed(false);
+        }}
+        placeholder="Scan another token: paste its 0x… address"
+        spellCheck={false}
+        className="w-full max-w-md rounded-md border border-neutral-700 bg-neutral-900 px-3 py-1.5 font-mono text-xs"
+      />
+      <button
+        type="submit"
+        disabled={!valid || busy}
+        className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-800 disabled:opacity-40"
+      >
+        {busy ? "Checking…" : "Add"}
+      </button>
+      {trimmed && !isAddress(trimmed) && <span className="text-xs text-red-400">not an address</span>}
+      {duplicate && <span className="text-xs text-neutral-500">already scanned</span>}
+      {failed && <span className="text-xs text-red-400">not an ERC-20 on this chain</span>}
+    </form>
+  );
+}
+
+function Permit2Section({
+  chainId,
+  tokens,
+  mainnetArmed,
+}: {
+  chainId: number;
+  tokens: TokenEntry[];
+  mainnetArmed: boolean;
+}) {
   const { address } = useAccount();
   const { writeContract, data: txHash, isPending, error, reset, variables } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
@@ -200,11 +277,10 @@ function Permit2Section({ chainId, mainnetArmed }: { chainId: number; mainnetArm
   });
 
   const pairs: Pair[] = useMemo(() => {
-    const tokens = TOKENS[chainId] ?? [];
     // Permit2 itself is the ERC-20 spender; here we scan who it sub-delegates to.
     const spenders = (SPENDERS[chainId] ?? []).filter((s) => s.address !== PERMIT2_ADDRESS);
     return tokens.flatMap((token) => spenders.map((spender) => ({ token, spender })));
-  }, [chainId]);
+  }, [chainId, tokens]);
 
   const { data, refetch } = useReadContracts({
     contracts: pairs.map((p) => ({
@@ -341,12 +417,18 @@ function Scanner() {
   const { switchChain } = useSwitchChain();
   const [mainnetArmed, setMainnetArmed] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // User-added tokens, keyed by chain so a Sepolia address never leaks into a mainnet scan.
+  const [customTokens, setCustomTokens] = useState<Record<number, TokenEntry[]>>({});
+
+  const tokens: TokenEntry[] = useMemo(
+    () => [...(TOKENS[chainId] ?? []), ...(customTokens[chainId] ?? [])],
+    [chainId, customTokens],
+  );
 
   const pairs: Pair[] = useMemo(() => {
-    const tokens = TOKENS[chainId] ?? [];
     const spenders = SPENDERS[chainId] ?? [];
     return tokens.flatMap((token) => spenders.map((spender) => ({ token, spender })));
-  }, [chainId]);
+  }, [chainId, tokens]);
 
   const { data, isLoading, refetch, dataUpdatedAt } = useReadContracts({
     contracts: pairs.map((p) => ({
@@ -505,7 +587,15 @@ function Scanner() {
         </div>
       )}
 
-      <Permit2Section chainId={chainId} mainnetArmed={mainnetArmed} />
+      <AddTokenForm
+        chainId={chainId}
+        known={tokens}
+        onAdd={(t) =>
+          setCustomTokens((prev) => ({ ...prev, [chainId]: [...(prev[chainId] ?? []), t] }))
+        }
+      />
+
+      <Permit2Section chainId={chainId} tokens={tokens} mainnetArmed={mainnetArmed} />
 
       {findings.length > 1 && (
         <BatchRevokeButton
