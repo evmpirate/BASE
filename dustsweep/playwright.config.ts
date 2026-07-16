@@ -16,11 +16,15 @@ export default defineConfig({
     headless: true,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  // Production build, not `next dev`: dev mode + Turbopack HMR is flaky to
+  // hydrate under headless CI (the page can hang on the pre-mount state).
+  // A built app hydrates deterministically. NEXT_PUBLIC_E2E is inlined at
+  // build time; the ?e2e=1 URL param is the runtime belt-and-braces.
   webServer: {
-    command: "NEXT_PUBLIC_E2E=1 npm run dev -- --port 3100",
+    command: "npm run build && npm run start -- --port 3100",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
     env: { NEXT_PUBLIC_E2E: "1" },
   },
 });
