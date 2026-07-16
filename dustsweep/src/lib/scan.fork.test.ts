@@ -10,7 +10,7 @@ import { PERMIT2_ADDRESS } from "./permit2";
 //   RUN_FORK=1 npx vitest run src/lib/scan.fork.test.ts
 // The fork serves real chain state, so the scans below hit the actual
 // Permit2 book and real token contracts — no mocks, no cost.
-const FORK_URL = process.env.FORK_URL ?? "http://127.0.0.1:8545";
+const ANVIL_RPC = process.env.ANVIL_RPC ?? "http://127.0.0.1:8545";
 
 // A real Base address observed granting Permit2 -> Universal Router an
 // unlimited USDC allowance shortly before the pinned fork block. Nothing
@@ -18,7 +18,7 @@ const FORK_URL = process.env.FORK_URL ?? "http://127.0.0.1:8545";
 const REAL_OWNER = "0xfa2d07e06a6eb3488698fe13981a17c33f93c829" as const;
 const FORK_BLOCK = 48705000;
 
-const client = createPublicClient({ chain: base, transport: http(FORK_URL) });
+const client = createPublicClient({ chain: base, transport: http(ANVIL_RPC) });
 
 const pairs: Pair[] = TOKENS[base.id].flatMap((token) =>
   SPENDERS[base.id]

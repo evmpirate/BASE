@@ -12,10 +12,10 @@ import { SPENDERS, TOKENS } from "./registry";
 // We become a REAL owner with a live Permit2 grant (no key needed — anvil's
 // anvil_impersonateAccount lets us send as any address on the fork), run
 // DustSweep's lockdown() path, and assert the grant is actually zeroed.
-const FORK_URL = process.env.FORK_URL ?? "http://127.0.0.1:8545";
+const ANVIL_RPC = process.env.ANVIL_RPC ?? "http://127.0.0.1:8545";
 const REAL_OWNER = "0xfa2d07e06a6eb3488698fe13981a17c33f93c829" as const;
 
-const transport = http(FORK_URL);
+const transport = http(ANVIL_RPC);
 const publicClient = createPublicClient({ chain: base, transport });
 const testClient = createTestClient({ chain: base, mode: "anvil", transport });
 const walletClient = createWalletClient({ chain: base, transport });
