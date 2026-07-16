@@ -1,0 +1,8 @@
+# Repo-specific gitleaks config, extending the default ruleset.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "EVM addresses (20-byte hex) are public identifiers, not secrets. Private keys are 64 hex chars and remain detectable."
+regexTarget = "secret"
+regexes = ['''^0x[a-fA-F0-9]{40}$''']

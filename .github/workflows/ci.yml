@@ -108,6 +108,32 @@ jobs:
         env:
           CI: "true"
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks scans the full history
+
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Production dependencies only; moderate advisories don't fail the
+      # build, high and critical do.
+      - name: Dependency audit (trailkeeper)
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: trailkeeper
+
+      - name: Dependency audit (dustsweep)
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: dustsweep
+
   trailkeeper:
     runs-on: ubuntu-latest
     steps:
