@@ -7,24 +7,12 @@ import { test, expect } from "@playwright/test";
 // Prereq: anvil fork on :8545 at FORK_BLOCK=48705000.
 
 test("connect, switch to Base, see the real Permit2 grant", async ({ page }) => {
-  page.on("console", (m) => console.log(`[browser:${m.type()}]`, m.text()));
-  page.on("pageerror", (e) => console.log("[pageerror]", e.message));
-
   // ?e2e=1 forces the mock connector + fork RPC client-side (belt-and-braces
-  // with NEXT_PUBLIC_E2E, which the dev server also sets).
+  // with NEXT_PUBLIC_E2E, which the built server also sets).
   await page.goto("/?e2e=1");
 
-  // Page loaded at all?
-  await expect(page.getByRole("heading", { name: /DustSweep/i })).toBeVisible();
-
-  // Diagnostic: what does the page actually render + which connectors are wired?
-  await page.waitForTimeout(2000);
-  console.log("PAGE TEXT >>>", (await page.locator("main").innerText()).replace(/\s+/g, " ").slice(0, 400));
-  const buttons = await page.getByRole("button").allInnerTexts();
-  console.log("BUTTONS >>>", JSON.stringify(buttons));
-
   // Connect the mock wallet.
-  await page.getByRole("button", { name: /Connect Mock Connector/i }).click({ timeout: 15_000 });
+  await page.getByRole("button", { name: /Connect Mock Connector/i }).click();
 
   // Disconnect button carries the truncated address once connected.
   await expect(page.getByRole("button", { name: /Disconnect/i })).toBeVisible();
