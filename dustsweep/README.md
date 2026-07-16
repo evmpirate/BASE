@@ -28,4 +28,8 @@ npm test           # vitest suite for src/lib
 npm run typecheck
 ```
 
+## Deployment
+
+Deployed on Vercel (project `dustsweep`, Root Directory `dustsweep/`), auto-deploys on every push to `master`.
+
 Part of the [BASE monorepo](https://github.com/evmpirate/BASE).
