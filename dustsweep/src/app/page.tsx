@@ -212,7 +212,9 @@ function Scanner() {
         pair,
         allowance: data[i]?.status === "success" ? (data[i].result as bigint) : 0n,
       }))
-      .filter((f) => f.allowance > 0n);
+      .filter((f) => f.allowance > 0n)
+      // Highest risk first: unlimited approvals top the list.
+      .sort((a, b) => (b.allowance > a.allowance ? 1 : b.allowance < a.allowance ? -1 : 0));
   }, [data, pairs]);
 
   // Selection only makes sense over rows that still have an allowance; drop

@@ -4,8 +4,8 @@
 
 Monorepo for Base L2 learning projects, built end-to-end on Base Sepolia and Base mainnet:
 
-- [`trailkeeper/`](./trailkeeper) — ERC-8004 onchain agent reporting badge progress, paid `x402` endpoint, live on Vercel
-- [`dustsweep/`](./dustsweep) — ERC-20 approval scanner/revoker dapp (Next.js + wagmi)
+- [`trailkeeper/`](./trailkeeper) — ERC-8004 onchain agent reporting badge progress: paid `x402` endpoint, activity feed, on-chain SVG badge gallery (`/badges`), live on Vercel
+- [`dustsweep/`](./dustsweep) — ERC-20 approval scanner/revoker dapp (Next.js + wagmi); single-tx batch revoke via EIP-5792 `wallet_sendCalls` with sequential fallback for plain EOAs
 - [`onchain-trail-badges/`](./onchain-trail-badges) — TRAIL badge NFT collection with fully onchain SVG metadata (Foundry)
 
 ## Live
