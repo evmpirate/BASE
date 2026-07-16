@@ -55,6 +55,31 @@ contract OnchainTrailBadgesTest is Test {
         assertTrue(vm.contains(json, '{"trait_type":"Achievement","value":"First Deploy"}'));
     }
 
+    /// @dev Any recipient EOA and any name string round-trip through mint,
+    ///      and tokenURI stays a well-formed on-chain data URI.
+    function testFuzz_MintRoundTrip(address to, string calldata name_) public {
+        vm.assume(to != address(0) && to.code.length == 0);
+
+        vm.prank(owner);
+        uint256 tokenId = badges.mint(to, name_);
+
+        assertEq(badges.ownerOf(tokenId), to);
+        assertEq(badges.badgeName(tokenId), name_);
+        assertTrue(_startsWith(badges.tokenURI(tokenId), "data:application/json;base64,"));
+    }
+
+    /// @dev Ids are handed out sequentially from 1 regardless of batch size.
+    function testFuzz_SequentialTokenIds(uint8 mints) public {
+        uint256 n = bound(mints, 1, 20);
+        for (uint256 i = 0; i < n; i++) {
+            vm.prank(owner);
+            uint256 tokenId = badges.mint(alice, "Badge");
+            assertEq(tokenId, i + 1);
+        }
+        assertEq(badges.nextTokenId(), n + 1);
+        assertEq(badges.balanceOf(alice), n);
+    }
+
     function test_TokenURIRevertsForNonexistentToken() public {
         vm.expectRevert(abi.encodeWithSelector(IERC721Errors.ERC721NonexistentToken.selector, 99));
         badges.tokenURI(99);
