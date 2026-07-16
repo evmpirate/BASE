@@ -106,6 +106,29 @@ test("/healthz reports degraded with 503 when the RPC head lags", async () => {
   });
 });
 
+test("every response carries baseline security headers", async () => {
+  await withServer({ client: fakeClient() }, async (base) => {
+    for (const path of ["/", "/badges"]) {
+      const res = await fetch(`${base}${path}`);
+      assert.equal(res.headers.get("x-content-type-options"), "nosniff");
+      assert.equal(res.headers.get("x-frame-options"), "DENY");
+      assert.equal(res.headers.get("referrer-policy"), "no-referrer");
+      assert.match(res.headers.get("content-security-policy"), /default-src 'none'/);
+      await res.arrayBuffer();
+    }
+  });
+});
+
+test("requests beyond the rate limit get 429 with Retry-After", async () => {
+  await withServer({ client: fakeClient(), rateLimit: { limit: 2, windowMs: 60_000 } }, async (base) => {
+    assert.equal((await fetch(`${base}/`)).status, 200);
+    assert.equal((await fetch(`${base}/`)).status, 200);
+    const limited = await fetch(`${base}/`);
+    assert.equal(limited.status, 429);
+    assert.ok(Number(limited.headers.get("retry-after")) > 0);
+  });
+});
+
 test("/activity serves mints from the incremental index", async () => {
   const chainClient = {
     async getBlockNumber() {

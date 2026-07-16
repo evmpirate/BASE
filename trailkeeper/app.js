@@ -4,7 +4,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { createPublicClient, fallback, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
-import { decodeTokenUri, journeyStatus, makeCache } from "./lib.js";
+import { decodeTokenUri, journeyStatus, makeCache, makeRateLimiter } from "./lib.js";
 import { createIndexer, memoryStorage } from "./indexer.js";
 
 // TrailKeeper — a minimal ERC-8004 agent service.
@@ -56,8 +56,26 @@ const resourceServer = new x402ResourceServer(facilitatorClient).register(
 
 // Factory so tests can inject a fake chain client, clock, or index;
 // production entry points use the default export built from the real client.
-export function makeApp({ client = defaultClient, now = Date.now, index } = {}) {
+export function makeApp({ client = defaultClient, now = Date.now, index, rateLimit } = {}) {
 const app = express();
+
+// Baseline security headers on every response. The HTML pages (/badges,
+// /dashboard) use inline <script>/<style> by design (no build step), so CSP
+// allows inline; everything else stays locked down. Badge images are data:
+// URIs, /badges fetches /badges.json — hence img-src data: and connect-src
+// 'self'. Explorer links are navigations, not resource loads.
+app.use((_req, res, next) => {
+  res.set({
+    "Content-Security-Policy":
+      "default-src 'none'; img-src 'self' data:; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+  });
+  next();
+});
+
+app.use(makeRateLimiter({ now, ...rateLimit }));
 
 // Mint index for /activity: in-memory on serverless (backfills once per cold
 // start, then each sync only scans new blocks — the old code re-walked the

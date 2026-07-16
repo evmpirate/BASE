@@ -1,6 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decodeTokenUri, journeyStatus, makeCache } from "./lib.js";
+import { decodeTokenUri, journeyStatus, makeCache, makeRateLimiter } from "./lib.js";
+
+function fakeRes() {
+  const res = { headers: {}, statusCode: null, body: null };
+  res.set = (k, v) => (res.headers[k] = v);
+  res.status = (c) => ((res.statusCode = c), res);
+  res.json = (b) => ((res.body = b), res);
+  return res;
+}
 
 test("makeCache returns fresh value once and caches within TTL", async () => {
   let t = 0;
@@ -88,6 +96,37 @@ test("decodeTokenUri decodes base64 JSON metadata", () => {
 test("decodeTokenUri rejects non-data URIs", () => {
   assert.throws(() => decodeTokenUri("https://example.com/1.json"));
   assert.throws(() => decodeTokenUri("data:application/json;utf8,{}"));
+});
+
+test("rate limiter allows a burst up to the limit, then 429s until the window resets", () => {
+  let t = 0;
+  const limiter = makeRateLimiter({ limit: 3, windowMs: 1000, now: () => t });
+  const req = { ip: "1.2.3.4" };
+
+  for (let i = 0; i < 3; i++) {
+    let passed = false;
+    limiter(req, fakeRes(), () => (passed = true));
+    assert.equal(passed, true, `request ${i + 1} should pass`);
+  }
+  const res = fakeRes();
+  limiter(req, res, () => assert.fail("should not pass"));
+  assert.equal(res.statusCode, 429);
+  assert.equal(res.headers["Retry-After"], "1");
+
+  t = 1000; // window rolls over
+  let passed = false;
+  limiter(req, fakeRes(), () => (passed = true));
+  assert.equal(passed, true);
+});
+
+test("rate limiter tracks client IPs independently", () => {
+  const limiter = makeRateLimiter({ limit: 1, windowMs: 1000, now: () => 0 });
+  let aPassed = false;
+  let bPassed = false;
+  limiter({ ip: "a" }, fakeRes(), () => (aPassed = true));
+  limiter({ ip: "b" }, fakeRes(), () => (bPassed = true));
+  assert.equal(aPassed, true);
+  assert.equal(bPassed, true);
 });
 
 test("journeyStatus marks earned milestones by badge name", () => {

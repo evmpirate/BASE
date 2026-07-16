@@ -56,3 +56,27 @@ export function decodeTokenUri(uri) {
 export function journeyStatus(milestones, badges) {
   return milestones.map((m) => ({ milestone: m, earned: badges.some((b) => b.name === m) }));
 }
+
+// Fixed-window rate limiter, per client IP. Best-effort by design: state is
+// per process, so on serverless each instance counts separately — the goal
+// is protecting the public-RPC quota behind the JSON endpoints from a single
+// noisy client, not hard quota enforcement.
+export function makeRateLimiter({ limit = 120, windowMs = 60_000, now = Date.now } = {}) {
+  const hits = new Map(); // ip -> { count, resetAt }
+  return function rateLimit(req, res, next) {
+    if (hits.size > 10_000) {
+      for (const [ip, slot] of hits) if (now() >= slot.resetAt) hits.delete(ip);
+    }
+    const ip = req.ip ?? "unknown";
+    const slot = hits.get(ip);
+    if (!slot || now() >= slot.resetAt) {
+      hits.set(ip, { count: 1, resetAt: now() + windowMs });
+      return next();
+    }
+    if (++slot.count > limit) {
+      res.set("Retry-After", String(Math.ceil((slot.resetAt - now()) / 1000)));
+      return res.status(429).json({ error: "rate limited", retryAfterSeconds: Math.ceil((slot.resetAt - now()) / 1000) });
+    }
+    next();
+  };
+}
