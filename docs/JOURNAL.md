@@ -263,3 +263,12 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   ~0.00145 SOL as rent for the message PDA — that, not fees, is where most of the SOL went;
   net of rent the 0.002 SOL principal came back in full (2 × 0.000995 after tx fees).
   **Round trip Solana -> Base -> Solana complete.**
+
+## 2026-07-16 — Solana key rotation (hygiene follow-up)
+
+- The key behind `AXhfH3TT…dmyQ` was pasted in plaintext chat when it was first shared, so it was
+  treated as exposed from day one. With the bridge round trip done, rotated it: fresh keypair
+  generated straight to `~/.config/solana/base-0x6-mainnet-v2.json` (secret never printed anywhere),
+  new address `BWM6hwfiDTWnyNaVdzLhaqC2ocQy1QU8uvdKKjryrX5G`.
+- Swept the full balance old -> new: tx `Y4NbiTdD1dUEsVGgmmiRS2vv2ewngZuNZa1u9je5MR37hnzHr9ZiVPL23mmDD6V3dMdzAS4BsK3J9ZkvVtTeJ4u`
+  (old wallet now 0 SOL, new holds 0.00227768 SOL). The old keypair file is retired.
