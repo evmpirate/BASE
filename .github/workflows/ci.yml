@@ -54,6 +54,50 @@ jobs:
         run: npm test
         working-directory: dustsweep
 
+  dustsweep-fork:
+    runs-on: ubuntu-latest
+    env:
+      FORK_URL: https://mainnet.base.org
+      FORK_BLOCK: "48705000"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: dustsweep/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: dustsweep
+
+      - name: Start anvil fork of Base mainnet
+        run: |
+          anvil --fork-url "$FORK_URL" --fork-block-number "$FORK_BLOCK" \
+            --chain-id 8453 --port 8545 > anvil.log 2>&1 &
+          for i in $(seq 1 40); do
+            cast block-number --rpc-url http://127.0.0.1:8545 >/dev/null 2>&1 && break
+            sleep 3
+          done
+          cast block-number --rpc-url http://127.0.0.1:8545
+
+      - name: Fork integration tests (RUN_FORK)
+        run: RUN_FORK=1 npm test
+        working-directory: dustsweep
+
+      - name: Install Playwright browser + deps
+        run: npx playwright install --with-deps chromium
+        working-directory: dustsweep
+
+      - name: E2E (mock wallet vs fork)
+        run: npm run e2e
+        working-directory: dustsweep
+        env:
+          CI: "true"
+
   trailkeeper:
     runs-on: ubuntu-latest
     steps:
