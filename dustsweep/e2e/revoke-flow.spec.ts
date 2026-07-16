@@ -14,8 +14,14 @@ test("connect, switch to Base, see the real Permit2 grant", async ({ page }) => 
   // Page loaded at all?
   await expect(page.getByRole("heading", { name: /DustSweep/i })).toBeVisible();
 
+  // Diagnostic: what does the page actually render + which connectors are wired?
+  await page.waitForTimeout(2000);
+  console.log("PAGE TEXT >>>", (await page.locator("main").innerText()).replace(/\s+/g, " ").slice(0, 400));
+  const buttons = await page.getByRole("button").allInnerTexts();
+  console.log("BUTTONS >>>", JSON.stringify(buttons));
+
   // Connect the mock wallet.
-  await page.getByRole("button", { name: /Connect Mock Connector/i }).click();
+  await page.getByRole("button", { name: /Connect Mock Connector/i }).click({ timeout: 15_000 });
 
   // Disconnect button carries the truncated address once connected.
   await expect(page.getByRole("button", { name: /Disconnect/i })).toBeVisible();
