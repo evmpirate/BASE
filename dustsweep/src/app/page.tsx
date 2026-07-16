@@ -19,6 +19,7 @@ import {
 import { readContracts } from "wagmi/actions";
 import { base, baseSepolia } from "wagmi/chains";
 import { BUILDER_CODE, DATA_SUFFIX } from "@/lib/attribution";
+import { reverseCall, supportsBasenames } from "@/lib/basename";
 import { buildRevokeCalls, pairKey } from "@/lib/batch";
 import {
   PERMIT2_ADDRESS,
@@ -41,6 +42,43 @@ function formatAllowance(value: bigint, decimals: number) {
   const s = formatUnits(value, decimals);
   const n = Number(s);
   return n >= 1 ? n.toLocaleString("en-US", { maximumFractionDigits: 4 }) : s;
+}
+
+// Reverse-resolve a set of addresses to Basenames (Base mainnet only), one
+// multicall to the L2 resolver. Returns a lowercased-address -> name map.
+function useBasenames(chainId: number, addresses: `0x${string}`[]) {
+  const uniq = useMemo(
+    () => [...new Set(addresses.map((a) => a.toLowerCase() as `0x${string}`))],
+    [addresses],
+  );
+  const enabled = supportsBasenames(chainId) && uniq.length > 0;
+  const { data } = useReadContracts({
+    contracts: uniq.map((a) => reverseCall(a)),
+    query: { enabled, staleTime: 5 * 60_000 },
+  });
+  return useMemo(() => {
+    const map = new Map<string, string>();
+    if (!data) return map;
+    uniq.forEach((a, i) => {
+      const r = data[i];
+      if (r?.status === "success" && r.result) map.set(a, r.result as string);
+    });
+    return map;
+  }, [data, uniq]);
+}
+
+// Shows a Basename when one resolves, with the short address underneath;
+// falls back to just the short address.
+function AddressLabel({ address, name }: { address: `0x${string}`; name?: string }) {
+  if (name) {
+    return (
+      <span className="inline-flex flex-col">
+        <span className="text-blue-300">{name}</span>
+        <span className="font-mono text-xs text-neutral-500">{short(address)}</span>
+      </span>
+    );
+  }
+  return <span className="font-mono text-xs text-neutral-500">{short(address)}</span>;
 }
 
 function ConnectPanel() {
@@ -309,6 +347,11 @@ function Permit2Section({
       .filter((f): f is Permit2Finding => f !== null && f.amount > 0n);
   }, [data, pairs]);
 
+  const names = useBasenames(
+    chainId,
+    findings.map((f) => f.spender.address),
+  );
+
   if (findings.length === 0) return null;
 
   const disabled = isPending || isConfirming || (chainId === base.id && !mainnetArmed);
@@ -338,7 +381,7 @@ function Permit2Section({
                 <td className="px-4 py-3 font-medium">{f.token.symbol}</td>
                 <td className="px-4 py-3">
                   <div>{f.spender.name}</div>
-                  <div className="font-mono text-xs text-neutral-500">{short(f.spender.address)}</div>
+                  <AddressLabel address={f.spender.address} name={names.get(f.spender.address.toLowerCase())} />
                 </td>
                 <td className="px-4 py-3">{formatAllowance(f.amount, f.token.decimals)}</td>
                 <td className="px-4 py-3">
@@ -460,6 +503,11 @@ function Scanner() {
     [findings, selected],
   );
 
+  const names = useBasenames(chainId, [
+    ...findings.map((f) => f.pair.spender.address),
+    ...(address ? [address] : []),
+  ]);
+
   const toggle = (key: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
@@ -570,7 +618,7 @@ function Scanner() {
                   </td>
                   <td className="px-4 py-3">
                     <div>{pair.spender.name}</div>
-                    <div className="font-mono text-xs text-neutral-500">{short(pair.spender.address)}</div>
+                    <AddressLabel address={pair.spender.address} name={names.get(pair.spender.address.toLowerCase())} />
                   </td>
                   <td className="px-4 py-3">
                     <span className={allowance >= maxUint256 / 2n ? "font-medium text-red-400" : ""}>
@@ -634,6 +682,9 @@ export default function Home() {
     () => false,
   );
 
+  const ownerNames = useBasenames(chainId, address ? [address] : []);
+  const ownerName = address ? ownerNames.get(address.toLowerCase()) : undefined;
+
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 bg-neutral-950 px-6 py-10 text-neutral-100">
       <header className="mb-8 flex items-center justify-between">
@@ -651,7 +702,13 @@ export default function Home() {
               <option value={baseSepolia.id}>Base Sepolia</option>
               <option value={base.id}>Base</option>
             </select>
-            <span className="font-mono text-sm text-neutral-300">{short(address)}</span>
+            <span className="text-sm text-neutral-300">
+              {ownerName ? (
+                <span className="text-blue-300">{ownerName}</span>
+              ) : (
+                <span className="font-mono">{short(address)}</span>
+              )}
+            </span>
             <button
               onClick={() => disconnect()}
               className="rounded-md border border-neutral-700 px-3 py-1.5 text-sm hover:bg-neutral-800"
