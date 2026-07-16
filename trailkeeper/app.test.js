@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { makeApp } from "./app.js";
+import { createIndexer } from "./indexer.js";
 
 const OWNER = "0x6D4843155412832dC3Fa9C59e593cdAfdf52639D";
 
@@ -102,6 +103,38 @@ test("/healthz reports degraded with 503 when the RPC head lags", async () => {
     const body = await res.json();
     assert.equal(body.status, "degraded");
     assert.equal(body.blockLagSeconds, 300);
+  });
+});
+
+test("/activity serves mints from the incremental index", async () => {
+  const chainClient = {
+    async getBlockNumber() {
+      return 100n;
+    },
+    async getLogs({ fromBlock, toBlock }) {
+      const mint = {
+        blockNumber: 50n,
+        transactionHash: "0xabc",
+        args: { from: "0x0000000000000000000000000000000000000000", to: OWNER, tokenId: 1n },
+      };
+      return 50n >= fromBlock && 50n <= toBlock ? [mint] : [];
+    },
+    async getBlock() {
+      return { timestamp: 1700000000n };
+    },
+  };
+  const index = createIndexer({ client: chainClient, address: "0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab", fromBlock: 1n });
+  await withServer({ client: chainClient, index }, async (base) => {
+    const res = await fetch(`${base}/activity`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("cache-control"), "public, max-age=30");
+    const body = await res.json();
+    assert.equal(body.events.length, 1);
+    const e = body.events[0];
+    assert.equal(e.type, "mint");
+    assert.equal(e.tokenId, 1);
+    assert.equal(e.timestamp, 1700000000);
+    assert.match(e.explorerUrl, /\/tx\/0xabc$/);
   });
 });
 

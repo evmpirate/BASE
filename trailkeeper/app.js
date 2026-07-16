@@ -5,6 +5,7 @@ import { HTTPFacilitatorClient } from "@x402/core/server";
 import { createPublicClient, fallback, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { decodeTokenUri, journeyStatus, makeCache } from "./lib.js";
+import { createIndexer, memoryStorage } from "./indexer.js";
 
 // TrailKeeper — a minimal ERC-8004 agent service.
 // Reports live OnchainTrail Badges progress from Base (CHAIN_ID=8453) or
@@ -53,10 +54,15 @@ const resourceServer = new x402ResourceServer(facilitatorClient).register(
   new ExactEvmScheme(),
 );
 
-// Factory so tests can inject a fake chain client and clock; production
-// entry points use the default export built from the real client below.
-export function makeApp({ client = defaultClient, now = Date.now } = {}) {
+// Factory so tests can inject a fake chain client, clock, or index;
+// production entry points use the default export built from the real client.
+export function makeApp({ client = defaultClient, now = Date.now, index } = {}) {
 const app = express();
+
+// Mint index for /activity: in-memory on serverless (backfills once per cold
+// start, then each sync only scans new blocks — the old code re-walked the
+// whole history from the deploy block on every cache expiry).
+index ??= createIndexer({ client, address: BADGES_ADDRESS, fromBlock: CFG.deployBlock, storage: memoryStorage() });
 
 // Chain state changes rarely (badge mints); a short cache keeps us clear of
 // public-RPC rate limits even under bursts of traffic. Cache TTL and the
@@ -204,45 +210,18 @@ app.get("/report", async (_req, res) => {
   }
 });
 
-// Recent on-chain activity: badge mints (Transfer from the zero address), read via
-// chunked eth_getLogs — public Base RPCs cap a single call at ~10k blocks.
-const transferEvent = { type: "event", name: "Transfer", inputs: [{ name: "from", type: "address", indexed: true }, { name: "to", type: "address", indexed: true }, { name: "tokenId", type: "uint256", indexed: true }] };
-async function getMintLogs() {
-  const latest = await client.getBlockNumber();
-  let logs = [];
-  for (let from = CFG.deployBlock; from <= latest; from += 9000n) {
-    const to = from + 8999n > latest ? latest : from + 8999n;
-    const chunk = await client.getLogs({
-      address: BADGES_ADDRESS,
-      event: transferEvent,
-      args: { from: "0x0000000000000000000000000000000000000000" },
-      fromBlock: from,
-      toBlock: to,
-    });
-    logs = logs.concat(chunk);
-  }
-  return logs;
-}
-
+// Recent on-chain activity: badge mints served from the incremental index.
+// sync() runs at most once per cache TTL; new mints appear once they are
+// `confirmations` blocks deep (~20s on Base).
 app.get("/activity", async (_req, res) => {
   try {
     const payload = await cached("activity", async () => {
-      const logs = await getMintLogs();
-      const withTime = await Promise.all(
-        logs.map(async (l) => {
-          const block = await client.getBlock({ blockNumber: l.blockNumber });
-          return {
-            type: "mint",
-            tokenId: Number(l.args.tokenId),
-            to: l.args.to,
-            txHash: l.transactionHash,
-            blockNumber: Number(l.blockNumber),
-            timestamp: Number(block.timestamp),
-            explorerUrl: `${CFG.explorer}/tx/${l.transactionHash}`,
-          };
-        }),
-      );
-      return { chain: CFG.label, events: withTime.reverse() };
+      await index.sync();
+      const events = index
+        .events()
+        .map((e) => ({ type: "mint", ...e, explorerUrl: `${CFG.explorer}/tx/${e.txHash}` }))
+        .reverse();
+      return { chain: CFG.label, events };
     });
     chainCacheHeaders(res);
     res.json(payload);
