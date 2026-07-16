@@ -72,3 +72,7 @@ jobs:
       - name: Import smoke test
         run: node -e "import('./app.js').then(()=>console.log('IMPORT_OK')).catch(e=>{console.error(e);process.exit(1)})"
         working-directory: trailkeeper
+
+      - name: Test
+        run: npm test
+        working-directory: trailkeeper

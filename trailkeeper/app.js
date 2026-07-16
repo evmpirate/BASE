@@ -4,6 +4,7 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { createPublicClient, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
+import { decodeTokenUri, journeyStatus, makeCache } from "./lib.js";
 
 // TrailKeeper — a minimal ERC-8004 agent service.
 // Reports live OnchainTrail Badges progress from Base (CHAIN_ID=8453) or
@@ -51,15 +52,7 @@ const app = express();
 
 // Chain state changes rarely (badge mints); a short cache keeps us clear of
 // public-RPC rate limits even under bursts of traffic.
-const CACHE_TTL_MS = 30_000;
-const cache = new Map();
-async function cached(key, compute) {
-  const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
-  const value = await compute();
-  cache.set(key, { at: Date.now(), value });
-  return value;
-}
+const cached = makeCache(30_000);
 
 app.use(
   paymentMiddleware(
@@ -137,7 +130,7 @@ app.get("/progress", async (_req, res) => {
       chain: CFG.label,
       badgesMinted: total,
       badges,
-      journey: milestones.map((m) => ({ milestone: m, earned: badges.some((b) => b.name === m) })),
+      journey: journeyStatus(milestones, badges),
     };
     });
     res.json(payload);
@@ -171,7 +164,7 @@ app.get("/report", async (_req, res) => {
     const badges = [];
     for (let id = 1; id <= total; id++) {
       const [name, owner, uri] = results.slice((id - 1) * 3, id * 3);
-      const metadata = JSON.parse(Buffer.from(uri.split(",")[1], "base64").toString());
+      const metadata = decodeTokenUri(uri);
       badges.push({ tokenId: id, name, owner, metadata });
     }
     return {
@@ -260,7 +253,7 @@ app.get("/badges.json", async (_req, res) => {
       const badges = [];
       for (let id = 1; id <= total; id++) {
         const [name, owner, uri] = results.slice((id - 1) * 3, id * 3);
-        const metadata = JSON.parse(Buffer.from(uri.split(",")[1], "base64").toString());
+        const metadata = decodeTokenUri(uri);
         badges.push({ tokenId: id, name, owner, image: metadata.image });
       }
       return { chain: CFG.label, contract: BADGES_ADDRESS, explorer: CFG.explorer, badges };
