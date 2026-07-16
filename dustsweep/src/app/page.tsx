@@ -18,6 +18,13 @@ import {
 import { base, baseSepolia } from "wagmi/chains";
 import { BUILDER_CODE, DATA_SUFFIX } from "@/lib/attribution";
 import { buildRevokeCalls, pairKey } from "@/lib/batch";
+import {
+  PERMIT2_ADDRESS,
+  isExpired,
+  permit2Abi,
+  toLockdownArgs,
+  type Permit2Finding,
+} from "@/lib/permit2";
 import { EXPLORERS, SPENDERS, TOKENS, type SpenderEntry, type TokenEntry } from "@/lib/registry";
 
 type Pair = { token: TokenEntry; spender: SpenderEntry };
@@ -180,6 +187,150 @@ function BatchRevokeButton({
           {error.message.split("\n")[0]} (dismiss)
         </button>
       )}
+    </div>
+  );
+}
+
+function Permit2Section({ chainId, mainnetArmed }: { chainId: number; mainnetArmed: boolean }) {
+  const { address } = useAccount();
+  const { writeContract, data: txHash, isPending, error, reset, variables } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
+    hash: txHash,
+    query: { enabled: Boolean(txHash) },
+  });
+
+  const pairs: Pair[] = useMemo(() => {
+    const tokens = TOKENS[chainId] ?? [];
+    // Permit2 itself is the ERC-20 spender; here we scan who it sub-delegates to.
+    const spenders = (SPENDERS[chainId] ?? []).filter((s) => s.address !== PERMIT2_ADDRESS);
+    return tokens.flatMap((token) => spenders.map((spender) => ({ token, spender })));
+  }, [chainId]);
+
+  const { data, refetch } = useReadContracts({
+    contracts: pairs.map((p) => ({
+      abi: permit2Abi,
+      address: PERMIT2_ADDRESS,
+      functionName: "allowance" as const,
+      args: [address!, p.token.address, p.spender.address] as const,
+      chainId,
+    })),
+    query: { enabled: Boolean(address) && pairs.length > 0 },
+  });
+
+  useEffect(() => {
+    if (isSuccess) refetch();
+  }, [isSuccess, refetch]);
+
+  const findings: Permit2Finding[] = useMemo(() => {
+    if (!data) return [];
+    return pairs
+      .map((pair, i) => {
+        const r = data[i];
+        if (r?.status !== "success") return null;
+        const [amount, expiration] = r.result as readonly [bigint, number, number];
+        return { ...pair, amount, expiration: Number(expiration) };
+      })
+      .filter((f): f is Permit2Finding => f !== null && f.amount > 0n);
+  }, [data, pairs]);
+
+  if (findings.length === 0) return null;
+
+  const disabled = isPending || isConfirming || (chainId === base.id && !mainnetArmed);
+  const lockingDown = variables?.functionName === "lockdown";
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="mt-4 text-lg font-semibold">Permit2 sub-allowances</h2>
+      <p className="text-xs text-neutral-500">
+        Permit2 keeps its own allowance book — revoking the ERC-20 approval alone does not clear these grants.
+        Expired grants are inert but still listed until revoked.
+      </p>
+      <div className="overflow-x-auto rounded-xl border border-neutral-800">
+        <table className="w-full text-sm">
+          <thead className="bg-neutral-900 text-left text-neutral-400">
+            <tr>
+              <th className="px-4 py-3 font-medium">Token</th>
+              <th className="px-4 py-3 font-medium">Spender</th>
+              <th className="px-4 py-3 font-medium">Amount</th>
+              <th className="px-4 py-3 font-medium">Expiry</th>
+              <th className="px-4 py-3 text-right font-medium">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {findings.map((f) => (
+              <tr key={pairKey(f)} className="border-t border-neutral-800">
+                <td className="px-4 py-3 font-medium">{f.token.symbol}</td>
+                <td className="px-4 py-3">
+                  <div>{f.spender.name}</div>
+                  <div className="font-mono text-xs text-neutral-500">{short(f.spender.address)}</div>
+                </td>
+                <td className="px-4 py-3">{formatAllowance(f.amount, f.token.decimals)}</td>
+                <td className="px-4 py-3">
+                  {isExpired(f) ? (
+                    <span className="text-neutral-500">expired</span>
+                  ) : (
+                    <span className="text-yellow-300">{new Date(f.expiration * 1000).toLocaleDateString()}</span>
+                  )}
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <button
+                    onClick={() =>
+                      writeContract({
+                        abi: permit2Abi,
+                        address: PERMIT2_ADDRESS,
+                        functionName: "approve",
+                        args: [f.token.address, f.spender.address, 0n, 0],
+                        chainId: chainId as typeof base.id,
+                        dataSuffix: DATA_SUFFIX,
+                      })
+                    }
+                    disabled={disabled}
+                    className="rounded-md bg-red-600/90 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Revoke
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-end gap-3">
+        <span className="text-xs text-neutral-500">
+          lockdown() zeroes all {findings.length} grants in one transaction
+        </span>
+        <button
+          onClick={() =>
+            writeContract({
+              abi: permit2Abi,
+              address: PERMIT2_ADDRESS,
+              functionName: "lockdown",
+              args: toLockdownArgs(findings),
+              chainId: chainId as typeof base.id,
+              dataSuffix: DATA_SUFFIX,
+            })
+          }
+          disabled={disabled}
+          className="rounded-md bg-red-600/90 px-4 py-1.5 text-sm font-medium text-white hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {isPending && lockingDown ? "Sign in wallet…" : isConfirming && lockingDown ? "Confirming…" : "Lockdown all"}
+        </button>
+        {txHash && (
+          <a
+            href={`${EXPLORERS[chainId]}/tx/${txHash}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-blue-400 underline"
+          >
+            view tx
+          </a>
+        )}
+        {error && (
+          <button onClick={() => reset()} className="max-w-56 truncate text-xs text-red-400" title={error.message}>
+            {error.message.split("\n")[0]} (dismiss)
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -353,6 +504,8 @@ function Scanner() {
           </table>
         </div>
       )}
+
+      <Permit2Section chainId={chainId} mainnetArmed={mainnetArmed} />
 
       {findings.length > 1 && (
         <BatchRevokeButton
