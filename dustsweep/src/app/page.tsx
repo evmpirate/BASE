@@ -9,6 +9,7 @@ import {
   useConfig,
   useConnect,
   useDisconnect,
+  usePublicClient,
   useReadContracts,
   useSendCalls,
   useSwitchChain,
@@ -28,6 +29,7 @@ import {
   toLockdownArgs,
   type Permit2Finding,
 } from "@/lib/permit2";
+import { traceErc20Approval, tracePermit2Approval, type ApprovalOrigin } from "@/lib/provenance";
 import { EXPLORERS, SPENDERS, TOKENS, type SpenderEntry, type TokenEntry } from "@/lib/registry";
 
 type Pair = { token: TokenEntry; spender: SpenderEntry };
@@ -65,6 +67,47 @@ function useBasenames(chainId: number, addresses: `0x${string}`[]) {
     });
     return map;
   }, [data, uniq]);
+}
+
+// Lazy "trace" cell: on click, scans backward through Approval logs (indexed
+// by owner/spender) to find when this grant was created, then shows the date
+// and a link to the originating transaction.
+function TraceCell({ chainId, load }: { chainId: number; load: () => Promise<ApprovalOrigin | null> }) {
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [origin, setOrigin] = useState<ApprovalOrigin | null>(null);
+
+  if (state === "idle") {
+    return (
+      <button
+        onClick={async () => {
+          setState("loading");
+          try {
+            setOrigin(await load());
+            setState("done");
+          } catch {
+            setState("error");
+          }
+        }}
+        className="text-xs text-neutral-400 underline hover:text-neutral-200"
+      >
+        trace
+      </button>
+    );
+  }
+  if (state === "loading") return <span className="text-xs text-neutral-500">scanning logs…</span>;
+  if (state === "error") return <span className="text-xs text-red-400">scan failed</span>;
+  if (!origin) return <span className="text-xs text-neutral-500">not found in recent history</span>;
+  return (
+    <a
+      href={`${EXPLORERS[chainId]}/tx/${origin.txHash}`}
+      target="_blank"
+      rel="noreferrer"
+      className="text-xs text-blue-400 underline"
+      title={`block ${origin.blockNumber}`}
+    >
+      granted {new Date(origin.timestamp * 1000).toLocaleDateString()}
+    </a>
+  );
 }
 
 // Shows a Basename when one resolves, with the short address underneath;
@@ -308,6 +351,7 @@ function Permit2Section({
   mainnetArmed: boolean;
 }) {
   const { address } = useAccount();
+  const publicClient = usePublicClient({ chainId: chainId as typeof base.id });
   const { writeContract, data: txHash, isPending, error, reset, variables } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({
     hash: txHash,
@@ -372,6 +416,7 @@ function Permit2Section({
               <th className="px-4 py-3 font-medium">Spender</th>
               <th className="px-4 py-3 font-medium">Amount</th>
               <th className="px-4 py-3 font-medium">Expiry</th>
+              <th className="px-4 py-3 font-medium">Origin</th>
               <th className="px-4 py-3 text-right font-medium">Action</th>
             </tr>
           </thead>
@@ -389,6 +434,16 @@ function Permit2Section({
                     <span className="text-neutral-500">expired</span>
                   ) : (
                     <span className="text-yellow-300">{new Date(f.expiration * 1000).toLocaleDateString()}</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  {publicClient && (
+                    <TraceCell
+                      chainId={chainId}
+                      load={() =>
+                        tracePermit2Approval(publicClient, address!, f.token.address, f.spender.address)
+                      }
+                    />
                   )}
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -457,6 +512,7 @@ function Permit2Section({
 function Scanner() {
   const { address, chainId: walletChainId } = useAccount();
   const chainId = useChainId();
+  const publicClient = usePublicClient({ chainId: chainId as typeof base.id });
   const { switchChain } = useSwitchChain();
   const [mainnetArmed, setMainnetArmed] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -591,6 +647,7 @@ function Scanner() {
                 <th className="px-4 py-3 font-medium">Token</th>
                 <th className="px-4 py-3 font-medium">Spender</th>
                 <th className="px-4 py-3 font-medium">Allowance</th>
+                <th className="px-4 py-3 font-medium">Origin</th>
                 <th className="px-4 py-3 text-right font-medium">Action</th>
               </tr>
             </thead>
@@ -624,6 +681,16 @@ function Scanner() {
                     <span className={allowance >= maxUint256 / 2n ? "font-medium text-red-400" : ""}>
                       {formatAllowance(allowance, pair.token.decimals)}
                     </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {publicClient && (
+                      <TraceCell
+                        chainId={chainId}
+                        load={() =>
+                          traceErc20Approval(publicClient, pair.token.address, address!, pair.spender.address)
+                        }
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <RevokeButton pair={pair} chainId={chainId} mainnetArmed={mainnetArmed} onSettled={refetch} />
