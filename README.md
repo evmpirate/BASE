@@ -13,6 +13,7 @@ Monorepo for Base L2 learning projects, built end-to-end on Base Sepolia and Bas
 | Item | Value |
 |---|---|
 | TrailKeeper (mainnet) | https://base-ten-mauve.vercel.app |
+| DustSweep | https://dustsweep-eight.vercel.app |
 | Badges contract | [`0x7Db9...20Ab`](https://basescan.org/address/0x7Db9fC55B64C1d17199069A7f3db73C16C0F20Ab#code) — same address on Base and Base Sepolia |
 | TrailKeeper ERC-8004 agentId | `58971` (mainnet), `8073` (Sepolia) |
 | Owner wallet | `0x6D4843155412832dC3Fa9C59e593cdAfdf52639D` (dupcia.base.eth) |

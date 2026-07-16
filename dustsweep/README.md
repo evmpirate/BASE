@@ -2,6 +2,8 @@
 
 Approval hygiene for Base: scan a wallet's ERC-20 approvals **and Permit2 sub-allowances**, then revoke them — one at a time or all at once.
 
+**Live: https://dustsweep-eight.vercel.app**
+
 ## Features
 
 - **Two-layer scan** — classic `allowance(owner, spender)` on a curated token/spender matrix, plus Permit2's own allowance book (`allowance(owner, token, spender)` → amount/expiry). Revoking the ERC-20 approval alone does not clear Permit2 grants; this shows both.
