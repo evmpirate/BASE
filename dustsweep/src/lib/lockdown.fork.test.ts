@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPublicClient, createTestClient, createWalletClient, http } from "viem";
 import { base } from "viem/chains";
 import { scanPermit2, type Pair } from "./scan";
@@ -27,6 +27,16 @@ const pairs: Pair[] = TOKENS[base.id].flatMap((token) =>
 );
 
 describe.runIf(process.env.RUN_FORK)("fork: Permit2 lockdown via impersonation", () => {
+  // This test mutates fork state (zeroes real grants). Snapshot before and
+  // revert after so it can't leak into other fork tests regardless of order.
+  let snapshot: `0x${string}`;
+  beforeAll(async () => {
+    snapshot = await testClient.snapshot();
+  });
+  afterAll(async () => {
+    await testClient.revert({ id: snapshot });
+  });
+
   it("zeroes every live grant in one lockdown() transaction", async () => {
     const before = await scanPermit2(publicClient, REAL_OWNER, pairs);
     expect(before.length).toBeGreaterThan(0); // fixture sanity: owner has grants

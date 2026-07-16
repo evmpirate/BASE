@@ -28,7 +28,10 @@ const pairs: Pair[] = TOKENS[base.id].flatMap((token) =>
 
 describe.runIf(process.env.RUN_FORK)("fork: scan real mainnet state", () => {
   it("is connected to the pinned fork", async () => {
-    expect(Number(await client.getBlockNumber())).toBe(FORK_BLOCK);
+    // Other fork tests mine local txs, so allow a small drift above the pin.
+    const bn = Number(await client.getBlockNumber());
+    expect(bn).toBeGreaterThanOrEqual(FORK_BLOCK);
+    expect(bn).toBeLessThan(FORK_BLOCK + 100);
   });
 
   it("finds the real owner's live Permit2 grant (USDC -> Universal Router)", async () => {
