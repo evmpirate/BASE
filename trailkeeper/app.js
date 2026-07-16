@@ -62,8 +62,11 @@ const app = express();
 // public-RPC rate limits even under bursts of traffic. Cache TTL and the
 // Cache-Control max-age on chain-backed JSON endpoints are kept in step:
 // clients may reuse a payload exactly as long as the server itself would.
+// maxStaleMs lets the last known payload ride out an RPC outage: better a
+// 10-minute-old badge list than a 502.
 const CACHE_TTL_MS = 30_000;
-const cached = makeCache(CACHE_TTL_MS);
+const CACHE_MAX_STALE_MS = 10 * 60_000;
+const cached = makeCache(CACHE_TTL_MS, { maxStaleMs: CACHE_MAX_STALE_MS, now });
 const chainCacheHeaders = (res) => res.set("Cache-Control", `public, max-age=${CACHE_TTL_MS / 1000}`);
 
 app.use(
