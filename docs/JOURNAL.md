@@ -240,3 +240,26 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   = 0.002) at wallet 0x6. Solana wallet has ~0.00318 SOL left (rent-exempt reserve + margin).
 - Reverse leg (Base->Solana, needs burn+prove+relay, ~35min like amberforge's) not yet done —
   open item if a full round trip is wanted.
+
+## 2026-07-16 — Base -> Solana reverse leg: round trip COMPLETE
+
+- Discovery first: an **unjournaled burn from 2026-07-15 22:38** turned up on-chain (the session
+  died before writing it down) — 0.001 wSOL burned via `Bridge.bridgeToken`, tx
+  `0xef541204478618048af44a13bf0f7a38b9b7b5cd6bffb35b781c68d709d6467f`, never proven or relayed.
+  Lesson: always reconcile the journal against actual token-transfer history when resuming.
+- Finished that stranded message: `prove-message` (`3Y4kXxTpFCWkDw1TYPFr3E84VqZJGskNrSHCmmPXdFxp4bkiPDvnZSTpZv8wMDDAdmpNvFQjjDrmucjMJvyGnYqD`)
+  + `relay-message` (`4XWGaymxYY5JcNWUQyWBYqHJpiPJieJEfwxaDcwZgnuJ71ozbUcEGcBwy57kJYSAvm2g9e6Rn2xw5r5ST4PrW2X4`)
+  — vault released 0.001 SOL to `AXhfH3TT…dmyQ`.
+- Second (final) burn of the remaining 0.001 wSOL, user-signed, reusing the identical calldata
+  (allowance left over from the original 2M approve covered it): Base tx
+  `0xa0772a1577a15a6f7d2e90df88205a178b673a8ac2b8059f1fd91677de7c1413` (block 48,705,675).
+- Root wait ~65 min (oracle bursty, same as amberforge's mainnet run). Watched read-only by
+  polling the bridge state account's `baseBlockNumber` (u64 at offset 8 of
+  `DMtzswCcRcsMmJasgHTNZcBHZvdBkrBe248CBdEXxpJm`) — no signing in the loop.
+- `prove-message` (`2xtK2ebYcZjd5QaZBjccaqqSssPVJ19pBDi1tQQR1vmdtiZ9E7L9xHTe86aVzKdJmMsWeEb8MkmbSnYZAcphYEYu`)
+  + `relay-message` (`5mVV4mQnLEpvH8E9BRE6zzZAPs3nmpzGdPG7kmVLKvKBbBxt4NhvU1SY2otZ1zvuCUVxWSNtWm6Hc12mN83DdoMp`)
+  — vault released the second 0.001 SOL.
+- End state: wSOL balance on Base = 0 (all burned), Solana wallet 0.00228 SOL. Each prove locks
+  ~0.00145 SOL as rent for the message PDA — that, not fees, is where most of the SOL went;
+  net of rent the 0.002 SOL principal came back in full (2 × 0.000995 after tx fees).
+  **Round trip Solana -> Base -> Solana complete.**
