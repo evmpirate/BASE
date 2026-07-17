@@ -11,6 +11,7 @@ import {
   createWalletClient,
   encodeFunctionData,
   erc20Abi,
+  fallback,
   formatUnits,
   http,
 } from "viem";
@@ -18,7 +19,16 @@ import { privateKeyToAccount } from "viem/accounts";
 import { base } from "viem/chains";
 import { Attribution } from "ox/erc8021";
 
-const RPC = process.env.RPC_URL ?? "https://mainnet.base.org";
+// The official RPC alone rate-limits the quoter's call burst; fall back
+// across public endpoints in fixed order (same pattern as trailkeeper).
+// RPC_URL overrides with a single endpoint.
+const RPC_URLS = process.env.RPC_URL
+  ? [process.env.RPC_URL]
+  : ["https://mainnet.base.org", "https://base-rpc.publicnode.com", "https://base.llamarpc.com"];
+const RPC = fallback(
+  RPC_URLS.map((url) => http(url, { retryCount: 2, retryDelay: 800 })),
+  { rank: false },
+);
 const USDC = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
 const DEGEN = "0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed";
 const QUOTER_V2 = "0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a";
@@ -79,7 +89,7 @@ const swapRouter02Abi = [
   },
 ];
 
-const publicClient = createPublicClient({ chain: base, transport: http(RPC) });
+const publicClient = createPublicClient({ chain: base, transport: RPC });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function bestQuote(tokenIn, tokenOut, amountIn) {
@@ -215,7 +225,7 @@ if (mode === "status") {
 }
 
 const account = privateKeyToAccount(process.env.PRIVATE_KEY);
-const walletClient = createWalletClient({ account, chain: base, transport: http(RPC) });
+const walletClient = createWalletClient({ account, chain: base, transport: RPC });
 const before = await balances(account.address);
 report("before", before);
 
