@@ -4,8 +4,10 @@ import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { HTTPFacilitatorClient } from "@x402/core/server";
 import { createPublicClient, fallback, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
 import { decodeTokenUri, journeyStatus, makeCache, makeRateLimiter } from "./lib.js";
 import { createIndexer, memoryStorage } from "./indexer.js";
+import { BADGES_V2_ADDRESS, makeVoucher, serializeVoucher, signVoucher } from "./voucherlib.js";
 
 // TrailKeeper — a minimal ERC-8004 agent service.
 // Reports live OnchainTrail Badges progress from Base (CHAIN_ID=8453) or
@@ -56,7 +58,12 @@ const resourceServer = new x402ResourceServer(facilitatorClient).register(
 
 // Factory so tests can inject a fake chain client, clock, or index;
 // production entry points use the default export built from the real client.
-export function makeApp({ client = defaultClient, now = Date.now, index, rateLimit } = {}) {
+export function makeApp({ client = defaultClient, now = Date.now, index, rateLimit, voucherSigner } = {}) {
+// Voucher issuing needs the agent's signing key. Deployments without it
+// (e.g. Vercel, which deliberately holds no key) advertise the endpoint as
+// unconfigured instead of failing at boot.
+const signerAccount =
+  voucherSigner ?? (process.env.PRIVATE_KEY ? privateKeyToAccount(process.env.PRIVATE_KEY) : null);
 const app = express();
 
 // Baseline security headers on every response. The HTML pages (/badges,
@@ -117,7 +124,7 @@ app.get("/", (_req, res) => {
   res.json({
     agent: "TrailKeeper",
     purpose: "Reports OnchainTrail Badges progress for dupcia.base.eth's Base builder journey",
-    endpoints: ["/.well-known/agent-card.json", "/progress", "/activity", "/badges", "/dashboard", "/healthz", "/report (paid, x402, $0.001 USDC)"],
+    endpoints: ["/.well-known/agent-card.json", "/progress", "/activity", "/badges", "/dashboard", "/healthz", "/voucher?to=0x… (EIP-712 badge voucher)", "/report (paid, x402, $0.001 USDC)"],
   });
 });
 
@@ -343,6 +350,35 @@ fetch("/activity").then(r=>r.json()).then(a=>{
 });
 </script>
 </body></html>`);
+});
+
+// EIP-712 voucher for the soulbound TrailBadgesV2 "Voucher Claim" badge.
+// The recipient (or any relayer) redeems it on-chain with claim(); gas is
+// theirs, the badge is theirs. The nonce is deterministic per (to, name), so
+// re-requesting a voucher never enables a second claim of the same badge.
+app.get("/voucher", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const contract = BADGES_V2_ADDRESS[CHAIN_ID];
+  if (!signerAccount || !contract) {
+    return res.status(501).json({
+      error: "voucher signing is not configured on this deployment",
+      hint: "run TrailKeeper with the agent key (PRIVATE_KEY) on a chain with TrailBadgesV2 deployed",
+    });
+  }
+  const to = req.query.to;
+  if (!/^0x[0-9a-fA-F]{40}$/.test(to ?? "")) {
+    return res.status(400).json({ error: "query param `to` must be a 0x address" });
+  }
+  const voucher = makeVoucher({ to, name: "Voucher Claim", now });
+  const signature = await signVoucher(signerAccount, CHAIN_ID, contract, voucher);
+  res.json({
+    chainId: CHAIN_ID,
+    contract,
+    signer: signerAccount.address,
+    voucher: serializeVoucher(voucher),
+    signature,
+    claim: "TrailBadgesV2.claim(to, name, nonce, deadline, signature) — any sender, badge lands at `to`",
+  });
 });
 
 // Liveness + RPC health. Base seals a block every ~2s, so if the latest

@@ -200,3 +200,56 @@ test("/healthz reports unreachable with 503 when the RPC errors", async () => {
     assert.match(body.error, /ETIMEDOUT/);
   });
 });
+
+test("/voucher issues a verifiable EIP-712 voucher for the requested wallet", async () => {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const { verifyTypedData } = await import("viem");
+  const { BADGES_V2_ADDRESS, voucherDomain, VOUCHER_TYPES } = await import("./voucherlib.js");
+  // Well-known anvil dev key #0 — test-only.
+  const signer = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+  await withServer({ client: fakeClient(), voucherSigner: signer, now: () => 1_800_000_000_000 }, async (base) => {
+    const res = await fetch(`${base}/voucher?to=${OWNER}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    const body = await res.json();
+    assert.equal(body.signer, signer.address);
+    assert.equal(body.voucher.to, OWNER);
+    assert.equal(body.voucher.name, "Voucher Claim");
+    assert.equal(BigInt(body.voucher.deadline), 1_800_003_600n);
+
+    const chainId = Number(process.env.CHAIN_ID ?? 84532);
+    assert.equal(
+      await verifyTypedData({
+        address: signer.address,
+        domain: voucherDomain(chainId, BADGES_V2_ADDRESS[chainId]),
+        types: VOUCHER_TYPES,
+        primaryType: "BadgeVoucher",
+        message: {
+          to: body.voucher.to,
+          name: body.voucher.name,
+          nonce: BigInt(body.voucher.nonce),
+          deadline: BigInt(body.voucher.deadline),
+        },
+        signature: body.signature,
+      }),
+      true,
+    );
+  });
+});
+
+test("/voucher rejects bad addresses and reports unconfigured deployments", async () => {
+  const { privateKeyToAccount } = await import("viem/accounts");
+  const signer = privateKeyToAccount("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80");
+
+  await withServer({ client: fakeClient(), voucherSigner: signer }, async (base) => {
+    const res = await fetch(`${base}/voucher?to=not-an-address`);
+    assert.equal(res.status, 400);
+  });
+
+  // No signer injected and no PRIVATE_KEY in the test env -> 501.
+  await withServer({ client: fakeClient() }, async (base) => {
+    const res = await fetch(`${base}/voucher?to=${OWNER}`);
+    assert.equal(res.status, 501);
+  });
+});
