@@ -29,9 +29,8 @@ contract TrailBadgesV2Test is Test {
         view
         returns (bytes memory)
     {
-        bytes32 structHash = keccak256(
-            abi.encode(badges.VOUCHER_TYPEHASH(), to, keccak256(bytes(name_)), nonce, deadline)
-        );
+        bytes32 structHash =
+            keccak256(abi.encode(badges.VOUCHER_TYPEHASH(), to, keccak256(bytes(name_)), nonce, deadline));
         bytes32 digest = keccak256(abi.encodePacked("\x19\x01", _domainSeparator(), structHash));
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, digest);
         return abi.encodePacked(r, s, v);

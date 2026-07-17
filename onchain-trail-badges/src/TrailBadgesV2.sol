@@ -78,9 +78,8 @@ contract TrailBadgesV2 is ERC721, Ownable, EIP712, IERC5192 {
         if (block.timestamp > deadline) revert VoucherExpired(deadline);
         if (nonceUsed[nonce]) revert NonceAlreadyUsed(nonce);
 
-        bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(VOUCHER_TYPEHASH, to, keccak256(bytes(name_)), nonce, deadline))
-        );
+        bytes32 digest =
+            _hashTypedDataV4(keccak256(abi.encode(VOUCHER_TYPEHASH, to, keccak256(bytes(name_)), nonce, deadline)));
         address recovered = ECDSA.recover(digest, signature);
         if (recovered != voucherSigner) revert InvalidVoucherSigner(recovered);
 

@@ -41,7 +41,11 @@ describe.runIf(process.env.RUN_FORK)("fork: sweep WETH dust into USDC", () => {
     await testClient.revert({ id: snapshot });
   });
 
-  it("executes the built calls and receives at least the slippage floor", async () => {
+  // Heaviest cold-cache test in the suite: quoting crawls the tick bitmaps
+  // of four pools slot-by-slot through the upstream RPC on a fresh CI
+  // runner — observed >120s. The budget is generous because the work is
+  // real, not because anything hangs.
+  it("executes the built calls and receives at least the slippage floor", { timeout: 360_000 }, async () => {
     const dust = parseEther("0.001");
     const deposit = await walletClient.writeContract({
       account: SWEEPER,
