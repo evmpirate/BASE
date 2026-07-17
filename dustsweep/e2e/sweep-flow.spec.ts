@@ -32,7 +32,7 @@ test.beforeAll(async () => {
   await testClient.stopImpersonatingAccount({ address: MOCK_ACCOUNT });
 });
 
-test("sweep panel prices the dust, quotes a route, and pre-selects it", async ({ page }) => {
+test("sweep panel lists the dust, quotes a route, and builds a selection", async ({ page }) => {
   await page.goto("/?e2e=1");
   await page.getByRole("button", { name: /Connect Mock Connector/i }).click();
   await expect(page.getByRole("button", { name: /Disconnect/i })).toBeVisible();
@@ -41,16 +41,21 @@ test("sweep panel prices the dust, quotes a route, and pre-selects it", async ({
   const heading = page.getByRole("heading", { name: /Sweep dust/i });
   await expect(heading).toBeVisible({ timeout: 30_000 });
 
-  // The WETH dust row: balance with a Chainlink USD estimate under it.
+  // The WETH dust row is found by the balance scan. NOTE: no USD estimate and
+  // no auto-pre-selection here — the fork is pinned >25h in the past, so the
+  // Chainlink rounds it serves are (correctly) rejected as stale by the app.
+  // The USD pipeline is covered by prices.fork.test.ts against the fork's
+  // frozen clock instead.
   const sweepTable = page.locator("table", { has: page.getByRole("cell", { name: "WETH", exact: true }) });
-  await expect(sweepTable.getByText(/≈ \$\d/).first()).toBeVisible({ timeout: 30_000 });
 
   // A real quote from the fork's V3 pools, tier included.
-  await expect(sweepTable.getByText(/USDC/).first()).toBeVisible({ timeout: 30_000 });
+  await expect(sweepTable.getByText(/USDC/).first()).toBeVisible({ timeout: 60_000 });
   await expect(sweepTable.getByText(/via 0\.\d+% pool/).first()).toBeVisible();
 
-  // Dust with a route is pre-selected, so the batch button counts it…
+  // Quote in hand, the row is manually selectable and the batch button counts
+  // it…
+  await page.getByRole("checkbox", { name: "Sweep WETH" }).check();
   await expect(page.getByRole("button", { name: /Sweep selected \([1-9]\d*\) → USDC/ })).toBeVisible();
-  // …but mainnet writes stay disarmed behind the checkbox.
+  // …but mainnet writes stay disarmed behind the arm checkbox.
   await expect(page.getByRole("button", { name: /Sweep selected/ })).toBeDisabled();
 });

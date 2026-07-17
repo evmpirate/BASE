@@ -27,7 +27,11 @@ test("connect, switch to Base, see the real Permit2 grant", async ({ page }) => 
   });
 
   // And the specific real grant shows up: USDC to the Universal Router.
-  const permit2Table = page.locator("table").last();
+  // Scoped by the Expiry column (unique to the Permit2 table) — positional
+  // .last() broke the day the Sweep panel added another table below it.
+  const permit2Table = page.locator("table", {
+    has: page.getByRole("columnheader", { name: "Expiry" }),
+  });
   await expect(permit2Table.getByText("USDC").first()).toBeVisible();
   await expect(permit2Table.getByText(/Universal Router/i).first()).toBeVisible();
 
