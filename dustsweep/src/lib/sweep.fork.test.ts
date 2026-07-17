@@ -41,11 +41,7 @@ describe.runIf(process.env.RUN_FORK)("fork: sweep WETH dust into USDC", () => {
     await testClient.revert({ id: snapshot });
   });
 
-  // Heaviest fork test in the suite: a deposit, four quoter simulations, two
-  // swap-path transactions and several reads — all cold-cache in CI, where
-  // each miss round-trips the public upstream RPC. Needs more than the
-  // config-wide 30s.
-  it("executes the built calls and receives at least the slippage floor", { timeout: 120_000 }, async () => {
+  it("executes the built calls and receives at least the slippage floor", async () => {
     const dust = parseEther("0.001");
     const deposit = await walletClient.writeContract({
       account: SWEEPER,
