@@ -123,46 +123,82 @@ function report(label, b) {
   console.log(`${label}: USDC=${formatUnits(b.usdc, 6)} DEGEN=${formatUnits(b.degen, 18)} DEGEN->router allowance=${b.allowance}`);
 }
 
+async function readAllowance(owner, token) {
+  return publicClient.readContract({
+    abi: erc20Abi,
+    address: token,
+    functionName: "allowance",
+    args: [owner, SWAP_ROUTER_02],
+  });
+}
+
 async function sendLeg(walletClient, account, tokenIn, tokenOut, amountIn, label) {
   const quote = await bestQuote(tokenIn, tokenOut, amountIn);
   if (!quote) throw new Error(`no V3 route for ${label}`);
   const minOut = (quote.amountOut * (10_000n - SLIPPAGE_BPS)) / 10_000n;
   console.log(`${label}: best tier ${quote.fee} quoted ${quote.amountOut} (floor ${minOut})`);
 
-  const approve = await walletClient.sendTransaction({
-    to: tokenIn,
-    data: attributed(
-      encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [SWAP_ROUTER_02, amountIn] }),
-    ),
-  });
-  console.log(`  approve tx: ${approve}`);
-  const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approve });
-  if (approveReceipt.status !== "success") throw new Error("approve reverted");
+  // Skip the approve when a sufficient allowance is already on-chain (e.g.
+  // a previous run's approve landed but its swap leg failed).
+  let approveGas = 0n;
+  if ((await readAllowance(account.address, tokenIn)) < amountIn) {
+    const approve = await walletClient.sendTransaction({
+      to: tokenIn,
+      data: attributed(
+        encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [SWAP_ROUTER_02, amountIn] }),
+      ),
+    });
+    console.log(`  approve tx: ${approve}`);
+    const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approve });
+    if (approveReceipt.status !== "success") throw new Error("approve reverted");
+    approveGas = approveReceipt.gasUsed;
+  } else {
+    console.log("  approve: sufficient allowance already on-chain, skipping");
+  }
 
-  const swap = await walletClient.sendTransaction({
-    to: SWAP_ROUTER_02,
-    data: attributed(
-      encodeFunctionData({
-        abi: swapRouter02Abi,
-        functionName: "exactInputSingle",
-        args: [
-          {
-            tokenIn,
-            tokenOut,
-            fee: quote.fee,
-            recipient: account.address,
-            amountIn,
-            amountOutMinimum: minOut,
-            sqrtPriceLimitX96: 0n,
-          },
-        ],
-      }),
-    ),
-  });
+  // The public Base RPC is load-balanced across nodes with uneven lag; the
+  // swap's eth_estimateGas can land on a node that has not seen the approve
+  // yet and revert with STF. Wait until THIS client reads the allowance back,
+  // then still retry the send a few times for the same reason.
+  for (let i = 0; (await readAllowance(account.address, tokenIn)) < amountIn; i++) {
+    if (i >= 20) throw new Error("approve not visible after 60s");
+    await sleep(3000);
+  }
+
+  let swap;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      swap = await walletClient.sendTransaction({
+        to: SWAP_ROUTER_02,
+        data: attributed(
+          encodeFunctionData({
+            abi: swapRouter02Abi,
+            functionName: "exactInputSingle",
+            args: [
+              {
+                tokenIn,
+                tokenOut,
+                fee: quote.fee,
+                recipient: account.address,
+                amountIn,
+                amountOutMinimum: minOut,
+                sqrtPriceLimitX96: 0n,
+              },
+            ],
+          }),
+        ),
+      });
+      break;
+    } catch (err) {
+      if (attempt >= 4 || !String(err).includes("STF")) throw err;
+      console.log(`  swap estimate hit a lagging node (STF), retry ${attempt}/3…`);
+      await sleep(4000);
+    }
+  }
   console.log(`  swap tx:    ${swap}`);
   const swapReceipt = await publicClient.waitForTransactionReceipt({ hash: swap });
   if (swapReceipt.status !== "success") throw new Error("swap reverted");
-  console.log(`  gas used: ${approveReceipt.gasUsed + swapReceipt.gasUsed}`);
+  console.log(`  gas used: ${approveGas + swapReceipt.gasUsed}`);
 }
 
 const mode = process.argv[2];
