@@ -238,7 +238,13 @@ if (mode === "buy") {
   await sendLeg(walletClient, account, DEGEN, USDC, before.degen, "sweep DEGEN->USDC");
 }
 
-const after = await balances(account.address);
+// The after-read can race a lagging node that still serves pre-swap state
+// (post-swap allowance briefly reads back as nonzero) — retry before judging.
+let after = await balances(account.address);
+for (let i = 0; mode === "sweep" && after.allowance !== 0n && i < 10; i++) {
+  await sleep(3000);
+  after = await balances(account.address);
+}
 report("after", after);
 if (mode === "sweep" && after.allowance !== 0n) {
   throw new Error("exact-amount approval not fully consumed?!");

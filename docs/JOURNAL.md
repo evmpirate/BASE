@@ -297,3 +297,23 @@ contract's one-shot-nonce rule becomes one-claim-per-wallet-per-badge for free.
 
 Gotcha reconfirmed: right after `transferOwnership`, `owner()` read back the OLD value from
 the official RPC — laggy load-balanced node, the event log had the transfer all along.
+
+## 2026-07-17 — DustSweep sweep finał on mainnet (blok E)
+
+The new sweep feature's exact call shapes (exact-amount approve + best-tier
+`exactInputSingle`, both carrying the `bc_9a7f6zpz` ERC-8021 suffix), executed for real on
+wallet 0x6 via `scripts/sweep-demo.mjs`:
+
+- **Buy leg (making dust)**: 1 USDC -> 856.772287 DEGEN, 0.3% tier. Approve
+  `0x65620ccfb34cc7643fc7d423207a0c6d0d74f9b09d8ae920911ef6831a5d22da`, swap
+  `0x5de22b772aacfc822b625442d090ef1efb25d148c473cf183db1833811cd33e4`.
+- **Sweep leg (the finał)**: all 856.772287 DEGEN -> 0.986942 USDC, 0.3% tier. Approve
+  `0x6b5f0324d0a102369499dd9bdf13887d04748ca7890176a41b04895881e78446`, swap
+  `0xda05f3353a9948f846a893b91ac09e8acdf75df288a654c8f11d9bbc886bf639`.
+- End state verified on two RPCs: DEGEN 0, allowance 0 (exact-amount approve fully
+  consumed), USDC 3.213379. Round-trip cost ~1.3¢ (two 0.3% pool fees) + pennies of gas.
+
+RPC friction catalogued along the way, all now handled by the script: `STF` when
+estimateGas lands on a node that hasn't seen the approve (wait for allowance read-back +
+retry), `over rate limit` on the official endpoint (fixed-order fallback across three
+public RPCs), and a stale after-read briefly showing pre-swap state (retry before judging).
