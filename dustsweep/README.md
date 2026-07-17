@@ -11,6 +11,7 @@ Approval hygiene for Base: scan a wallet's ERC-20 approvals **and Permit2 sub-al
 - **Permit2 lockdown** — zero every Permit2 grant in one transaction using Permit2's native `lockdown()`.
 - **Scan any token** — paste an address; symbol/decimals are resolved on-chain and the token joins both scan layers.
 - **Risk-first ordering** — unlimited approvals surface at the top.
+- **USD exposure (Chainlink)** — finite allowances show their dollar value from on-chain Chainlink feeds (Base mainnet). Only curated tokens are priced — a pasted token spoofing a known symbol gets no value — and rounds older than the slowest feed heartbeat are dropped rather than displayed.
 - **Wrong-network guard** — writes are pinned to the selected chain; a mismatch banner offers a one-click switch.
 - **Mainnet safety** — Base mainnet revokes stay disabled behind an explicit arm checkbox.
 - **ERC-8021 attribution** — every revoke carries the registered builder code `bc_9a7f6zpz` as a calldata suffix.
