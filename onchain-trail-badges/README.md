@@ -16,6 +16,13 @@ rendered from chain data.
   on-chain JSON + SVG metadata.
 - `src/TrailAnchor.sol` — constants-only pointer contract, deployed via the
   deterministic CREATE2 factory.
+- `src/TrailBadgesV2.sol` — soulbound (ERC-5192) badges claimed by the earner
+  via an agent-signed EIP-712 voucher `{to, name, nonce, deadline}`: anyone may
+  relay the claim, the badge always lands at the voucher's `to`; nonce replay
+  and expiry are enforced on-chain, the signer key is owner-rotatable, and
+  wallet-to-wallet transfers revert. Deployed + verified:
+  Base `0x6D85942b2bE0428B24C51E042d24BEF891FBDB58`,
+  Base Sepolia `0x68827fb4338bB3dba6C4F9084c25d98295A9d512`.
 
 ## Testing
 
