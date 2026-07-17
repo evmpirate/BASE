@@ -7,6 +7,7 @@ import {
   fetchUsdPrices,
   formatUsd,
   isFresh,
+  priceableSymbol,
   usdValue,
   type UsdPrice,
 } from "./prices";
@@ -83,6 +84,18 @@ describe("fetchUsdPrices", () => {
       },
     } as unknown as Parameters<typeof fetchUsdPrices>[0];
     expect(await fetchUsdPrices(client, baseSepolia.id, ["ETH", "USDC"], NOW)).toEqual(new Map());
+  });
+});
+
+describe("priceableSymbol", () => {
+  it("prices curated tokens by address, not by whatever symbol they claim", () => {
+    const realUsdc = { symbol: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 } as const;
+    const spoof = { ...realUsdc, address: "0x000000000000000000000000000000000000dEaD" } as const;
+    expect(priceableSymbol(base.id, realUsdc)).toBe("USDC");
+    // Case-insensitive address match — checksummed vs lowercased input.
+    expect(priceableSymbol(base.id, { ...realUsdc, address: realUsdc.address.toLowerCase() as `0x${string}` })).toBe("USDC");
+    expect(priceableSymbol(base.id, spoof)).toBeUndefined();
+    expect(priceableSymbol(baseSepolia.id, realUsdc)).toBeUndefined();
   });
 });
 

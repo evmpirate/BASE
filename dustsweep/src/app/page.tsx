@@ -29,6 +29,14 @@ import {
   toLockdownArgs,
   type Permit2Finding,
 } from "@/lib/permit2";
+import { useQuery } from "@tanstack/react-query";
+import {
+  fetchUsdPrices,
+  formatUsd,
+  priceableSymbol,
+  usdValue,
+  type UsdPrice,
+} from "@/lib/prices";
 import { traceErc20Approval, tracePermit2Approval, type ApprovalOrigin } from "@/lib/provenance";
 import { EXPLORERS, SPENDERS, TOKENS, type SpenderEntry, type TokenEntry } from "@/lib/registry";
 
@@ -67,6 +75,49 @@ function useBasenames(chainId: number, addresses: `0x${string}`[]) {
     });
     return map;
   }, [data, uniq]);
+}
+
+const EMPTY_PRICES: Map<string, UsdPrice> = new Map();
+
+// USD estimates via Chainlink feeds (registered for Base mainnet only — the
+// map just stays empty elsewhere). One query per (chain, symbol set); the lib
+// dedupes wrapper aliases into single feed reads and drops stale rounds.
+function useUsdPrices(chainId: number, tokens: TokenEntry[]) {
+  const publicClient = usePublicClient({ chainId: chainId as typeof base.id });
+  const symbols = useMemo(
+    () => [...new Set(tokens.flatMap((t) => priceableSymbol(chainId, t) ?? []))].sort(),
+    [chainId, tokens],
+  );
+  const { data } = useQuery({
+    queryKey: ["usd-prices", chainId, symbols],
+    enabled: Boolean(publicClient) && symbols.length > 0,
+    staleTime: 60_000,
+    queryFn: () => fetchUsdPrices(publicClient!, chainId, symbols),
+  });
+  return data ?? EMPTY_PRICES;
+}
+
+// "≈ $12.34" underneath an amount, when the token has a trustworthy feed.
+// Unlimited approvals get no estimate — the exposure is the whole balance,
+// not the sentinel value.
+function UsdEstimate({
+  chainId,
+  token,
+  amount,
+  prices,
+}: {
+  chainId: number;
+  token: TokenEntry;
+  amount: bigint;
+  prices: Map<string, UsdPrice>;
+}) {
+  if (amount >= maxUint256 / 2n) return null;
+  const symbol = priceableSymbol(chainId, token);
+  const price = symbol ? prices.get(symbol) : undefined;
+  if (!price) return null;
+  return (
+    <div className="text-xs text-neutral-500">≈ {formatUsd(usdValue(amount, token.decimals, price))}</div>
+  );
 }
 
 // Lazy "trace" cell: on click, scans backward through Approval logs (indexed
@@ -395,6 +446,7 @@ function Permit2Section({
     chainId,
     findings.map((f) => f.spender.address),
   );
+  const prices = useUsdPrices(chainId, tokens);
 
   if (findings.length === 0) return null;
 
@@ -428,7 +480,10 @@ function Permit2Section({
                   <div>{f.spender.name}</div>
                   <AddressLabel address={f.spender.address} name={names.get(f.spender.address.toLowerCase())} />
                 </td>
-                <td className="px-4 py-3">{formatAllowance(f.amount, f.token.decimals)}</td>
+                <td className="px-4 py-3">
+                  {formatAllowance(f.amount, f.token.decimals)}
+                  <UsdEstimate chainId={chainId} token={f.token} amount={f.amount} prices={prices} />
+                </td>
                 <td className="px-4 py-3">
                   {isExpired(f) ? (
                     <span className="text-neutral-500">expired</span>
@@ -563,6 +618,7 @@ function Scanner() {
     ...findings.map((f) => f.pair.spender.address),
     ...(address ? [address] : []),
   ]);
+  const prices = useUsdPrices(chainId, tokens);
 
   const toggle = (key: string) =>
     setSelected((prev) => {
@@ -681,6 +737,7 @@ function Scanner() {
                     <span className={allowance >= maxUint256 / 2n ? "font-medium text-red-400" : ""}>
                       {formatAllowance(allowance, pair.token.decimals)}
                     </span>
+                    <UsdEstimate chainId={chainId} token={pair.token} amount={allowance} prices={prices} />
                   </td>
                   <td className="px-4 py-3">
                     {publicClient && (

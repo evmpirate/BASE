@@ -1,5 +1,6 @@
 import type { Address, PublicClient } from "viem";
 import { base } from "wagmi/chains";
+import { TOKENS, type TokenEntry } from "./registry";
 
 // Only the reads we use — keeps callers free to pass any viem client shape
 // (the UI's wagmi client, a test fork client) without Chain-generic friction.
@@ -45,6 +46,16 @@ const ALIASES: Record<string, string> = { WETH: "ETH", USDbC: "USDC" };
 
 export function feedFor(chainId: number, symbol: string): Address | undefined {
   return FEEDS[chainId]?.[ALIASES[symbol] ?? symbol];
+}
+
+// Feeds are looked up by symbol, but symbols are spoofable — a user-added
+// token can call itself "USDC". Only price a token when its ADDRESS matches
+// the curated registry entry; everything else gets no USD value.
+export function priceableSymbol(chainId: number, token: TokenEntry): string | undefined {
+  const entry = TOKENS[chainId]?.find(
+    (t) => t.address.toLowerCase() === token.address.toLowerCase(),
+  );
+  return entry && feedFor(chainId, entry.symbol) ? entry.symbol : undefined;
 }
 
 export type UsdPrice = {
