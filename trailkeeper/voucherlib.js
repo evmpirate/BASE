@@ -5,7 +5,7 @@ import { encodeAbiParameters, keccak256 } from "viem";
 // Deployed TrailBadgesV2 contracts per chain (voucher-claimed, soulbound).
 export const BADGES_V2_ADDRESS = {
   84532: "0x68827fb4338bB3dba6C4F9084c25d98295A9d512",
-  // 8453 gets filled in by the mainnet deploy.
+  8453: "0x6D85942b2bE0428B24C51E042d24BEF891FBDB58",
 };
 
 export const VOUCHER_TYPES = {

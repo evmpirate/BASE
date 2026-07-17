@@ -272,3 +272,28 @@ comparing against the amberforge program (`~/BASE2/amberforge`, wallet 0x23dd...
   new address `BWM6hwfiDTWnyNaVdzLhaqC2ocQy1QU8uvdKKjryrX5G`.
 - Swept the full balance old -> new: tx `Y4NbiTdD1dUEsVGgmmiRS2vv2ewngZuNZa1u9je5MR37hnzHr9ZiVPL23mmDD6V3dMdzAS4BsK3J9ZkvVtTeJ4u`
   (old wallet now 0 SOL, new holds 0.00227768 SOL). The old keypair file is retired.
+
+## 2026-07-17 — TrailBadgesV2: soulbound badges claimed by EIP-712 voucher (blok F)
+
+New mint model rehearsed on Sepolia, finalized on mainnet: instead of the collection owner
+pushing badges at wallets (V1), the agent signs an off-chain **EIP-712 BadgeVoucher**
+`{to, name, nonce, deadline}` and the earner redeems it on-chain via `claim()`, paying their
+own gas. Badges are **soulbound (ERC-5192)** — mint/burn pass, wallet-to-wallet transfers
+revert, `locked()` is always true. Nonce is derived as `keccak256(to, name)`, so the
+contract's one-shot-nonce rule becomes one-claim-per-wallet-per-badge for free.
+
+- Contract `TrailBadgesV2.sol` (`onchain-trail-badges/`), 15 unit tests + 2 fuzz + 4-invariant
+  handler suite (ids dense, ownership never moves, all locked, balances sum to claims).
+- **Sepolia rehearsal**: deployed + verified `0x68827fb4338bB3dba6C4F9084c25d98295A9d512`;
+  badge #1 "Voucher Claim" claimed via burner-relayed voucher, landed at the owner wallet —
+  tx `0x226cd33ad408c1592e5ce839307b860df8d04dd1c2e519afb9492135561ba6e0`.
+- **Mainnet finał**: deployed + verified `0x6D85942b2bE0428B24C51E042d24BEF891FBDB58`
+  (deploy tx `0x7133c85367c3d94eab5bb5f692512fc5b95460992d55f390cfbb84bf4557f848`);
+  `transferOwnership` to the owner wallet `0x6D48…639D`
+  (tx `0x8d2fb74992532dfc98cd3e80f1a463575fe15b6c5feb62c58a4063a779ad3994`); the burner
+  stays `voucherSigner`. Owner-wallet self-claim of "Voucher Claim" pending user signature.
+- TrailKeeper grew `GET /voucher` (501 on keyless deployments like Vercel) + `voucher.mjs`
+  CLI; voucher plumbing unit-tested (`voucherlib.test.js`, EIP-712 verify round-trip).
+
+Gotcha reconfirmed: right after `transferOwnership`, `owner()` read back the OLD value from
+the official RPC — laggy load-balanced node, the event log had the transfer all along.
