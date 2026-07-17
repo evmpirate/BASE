@@ -291,7 +291,9 @@ contract's one-shot-nonce rule becomes one-claim-per-wallet-per-badge for free.
   (deploy tx `0x7133c85367c3d94eab5bb5f692512fc5b95460992d55f390cfbb84bf4557f848`);
   `transferOwnership` to the owner wallet `0x6D48…639D`
   (tx `0x8d2fb74992532dfc98cd3e80f1a463575fe15b6c5feb62c58a4063a779ad3994`); the burner
-  stays `voucherSigner`. Owner-wallet self-claim of "Voucher Claim" pending user signature.
+  stays `voucherSigner`. **Owner-wallet self-claim done**: badge #1 "Voucher Claim" minted to
+  `0x6D48…639D` by its own transaction (the earner-pays-gas model working end to end) —
+  tx `0x2457494134760fa19e6e1427210e24df533f11415d0a8971be8de52ad1eafd17`, 133k gas.
 - TrailKeeper grew `GET /voucher` (501 on keyless deployments like Vercel) + `voucher.mjs`
   CLI; voucher plumbing unit-tested (`voucherlib.test.js`, EIP-712 verify round-trip).
 
