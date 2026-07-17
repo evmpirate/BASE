@@ -30,6 +30,9 @@ import {
   type Permit2Finding,
 } from "@/lib/permit2";
 import { useQuery } from "@tanstack/react-query";
+import { scanBalances, withUsd } from "@/lib/balances";
+import { bestQuote, SWAP_ROUTER_02, type Quote } from "@/lib/quote";
+import { buildSweepCalls, DUST_THRESHOLD_USD, minOutFor, type SweepPlan } from "@/lib/sweep";
 import {
   fetchUsdPrices,
   formatUsd,
@@ -564,6 +567,213 @@ function Permit2Section({
   );
 }
 
+function SweepButton({
+  plans,
+  chainId,
+  owner,
+  usdcAddress,
+  mainnetArmed,
+  onSettled,
+}: {
+  plans: SweepPlan[];
+  chainId: number;
+  owner: `0x${string}`;
+  usdcAddress: `0x${string}`;
+  mainnetArmed: boolean;
+  onSettled: () => void;
+}) {
+  const { sendCalls, data, isPending, error, reset } = useSendCalls();
+  const { isLoading: isConfirming, isSuccess } = useWaitForCallsStatus({
+    id: data?.id,
+    query: { enabled: Boolean(data?.id) },
+  });
+
+  useEffect(() => {
+    if (isSuccess) onSettled();
+  }, [isSuccess, onSettled]);
+
+  const totalFloor = plans.reduce((acc, p) => acc + minOutFor(p.quotedOut), 0n);
+  const disabled = plans.length === 0 || isPending || isConfirming || (chainId === base.id && !mainnetArmed);
+
+  return (
+    <div className="flex items-center justify-end gap-3">
+      <span className="text-xs text-neutral-500">
+        min. received after 1% slippage: {formatUnits(totalFloor, 6)} USDC
+      </span>
+      <button
+        onClick={() =>
+          sendCalls({
+            calls: buildSweepCalls(chainId, owner, usdcAddress, plans),
+            chainId: chainId as typeof base.id,
+            experimental_fallback: true,
+          })
+        }
+        disabled={disabled}
+        className="rounded-md bg-emerald-600/90 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {isPending
+          ? "Sign in wallet…"
+          : isConfirming
+            ? "Confirming…"
+            : isSuccess
+              ? "Swept ✓"
+              : `Sweep selected (${plans.length}) → USDC`}
+      </button>
+      {error && (
+        <button onClick={() => reset()} className="max-w-56 truncate text-xs text-red-400" title={error.message}>
+          {error.message.split("\n")[0]} (dismiss)
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SweepSection({
+  chainId,
+  tokens,
+  mainnetArmed,
+}: {
+  chainId: number;
+  tokens: TokenEntry[];
+  mainnetArmed: boolean;
+}) {
+  const { address } = useAccount();
+  const publicClient = usePublicClient({ chainId: chainId as typeof base.id });
+  // Manual checkbox overrides on top of the default selection (dust rows
+  // with a route are pre-checked). Stored as overrides so no effect has to
+  // sync state when the scan lands.
+  const [overrides, setOverrides] = useState<Map<string, boolean>>(new Map());
+
+  const usdc = useMemo(
+    () => TOKENS[chainId]?.find((t) => t.symbol === "USDC"),
+    [chainId],
+  );
+  const candidates = useMemo(
+    () => tokens.filter((t) => t.address.toLowerCase() !== usdc?.address.toLowerCase()),
+    [tokens, usdc],
+  );
+
+  const enabled = Boolean(address && publicClient && usdc && SWAP_ROUTER_02[chainId]);
+  const { data: findings, refetch } = useQuery({
+    queryKey: ["balances", chainId, address, candidates.map((t) => t.address).sort()],
+    enabled: enabled && candidates.length > 0,
+    staleTime: 30_000,
+    queryFn: () => scanBalances(publicClient!, address!, candidates),
+  });
+
+  const prices = useUsdPrices(chainId, candidates);
+  const rows = useMemo(
+    () => withUsd(chainId, findings ?? [], prices),
+    [chainId, findings, prices],
+  );
+
+  const { data: quotes } = useQuery({
+    queryKey: [
+      "sweep-quotes",
+      chainId,
+      rows.map((r) => `${r.token.address}:${r.balance}`).sort(),
+    ],
+    enabled: enabled && rows.length > 0,
+    staleTime: 30_000,
+    queryFn: async () => {
+      // Sequential on purpose: 4 simulations per token — parallel bursts trip
+      // public RPC rate limits.
+      const out = new Map<string, Quote>();
+      for (const r of rows) {
+        const q = await bestQuote(publicClient!, chainId, r.token.address, usdc!.address, r.balance);
+        if (q) out.set(r.token.address, q);
+      }
+      return out;
+    },
+  });
+
+  if (!enabled || rows.length === 0) return null;
+
+  const isSelected = (addr: `0x${string}`, usd?: number) =>
+    overrides.get(addr) ??
+    Boolean(quotes?.has(addr) && usd !== undefined && usd < DUST_THRESHOLD_USD);
+
+  const plans: SweepPlan[] = rows.flatMap((r) => {
+    const q = quotes?.get(r.token.address);
+    return q && isSelected(r.token.address, r.usd)
+      ? [{ token: r.token, amountIn: r.balance, fee: q.fee, quotedOut: q.amountOut }]
+      : [];
+  });
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="mt-4 text-lg font-semibold">Sweep dust → USDC</h2>
+      <p className="text-xs text-neutral-500">
+        Token balances under {formatUsd(DUST_THRESHOLD_USD)} are pre-selected. Each sweep is an exact-amount
+        approve + Uniswap V3 swap into USDC (best fee tier by quote), batched into one wallet confirmation.
+      </p>
+      <div className="overflow-x-auto rounded-xl border border-neutral-800">
+        <table className="w-full text-sm">
+          <thead className="bg-neutral-900 text-left text-neutral-400">
+            <tr>
+              <th className="px-4 py-3" />
+              <th className="px-4 py-3 font-medium">Token</th>
+              <th className="px-4 py-3 font-medium">Balance</th>
+              <th className="px-4 py-3 font-medium">Quote</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => {
+              const q = quotes?.get(r.token.address);
+              return (
+                <tr key={r.token.address} className="border-t border-neutral-800">
+                  <td className="px-4 py-3">
+                    <input
+                      type="checkbox"
+                      aria-label={`Sweep ${r.token.symbol}`}
+                      checked={isSelected(r.token.address, r.usd)}
+                      disabled={!q}
+                      onChange={() =>
+                        setOverrides((prev) =>
+                          new Map(prev).set(r.token.address, !isSelected(r.token.address, r.usd)),
+                        )
+                      }
+                      className="h-4 w-4"
+                    />
+                  </td>
+                  <td className="px-4 py-3 font-medium">{r.token.symbol}</td>
+                  <td className="px-4 py-3">
+                    {formatAllowance(r.balance, r.token.decimals)}
+                    {r.usd !== undefined && (
+                      <div className="text-xs text-neutral-500">≈ {formatUsd(r.usd)}</div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    {q ? (
+                      <>
+                        {formatUnits(q.amountOut, 6)} USDC
+                        <div className="text-xs text-neutral-500">via {q.fee / 10_000}% pool</div>
+                      </>
+                    ) : (
+                      <span className="text-xs text-neutral-500">no V3 route</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <SweepButton
+        plans={plans}
+        chainId={chainId}
+        owner={address!}
+        usdcAddress={usdc!.address}
+        mainnetArmed={mainnetArmed}
+        onSettled={() => {
+          setOverrides(new Map());
+          refetch();
+        }}
+      />
+    </div>
+  );
+}
+
 function Scanner() {
   const { address, chainId: walletChainId } = useAccount();
   const chainId = useChainId();
@@ -768,6 +978,8 @@ function Scanner() {
       />
 
       <Permit2Section chainId={chainId} tokens={tokens} mainnetArmed={mainnetArmed} />
+
+      <SweepSection chainId={chainId} tokens={tokens} mainnetArmed={mainnetArmed} />
 
       {findings.length > 1 && (
         <BatchRevokeButton
