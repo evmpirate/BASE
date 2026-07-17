@@ -1,6 +1,6 @@
 # 🧹 DustSweep
 
-Approval hygiene for Base: scan a wallet's ERC-20 approvals **and Permit2 sub-allowances**, then revoke them — one at a time or all at once.
+Wallet hygiene for Base: scan a wallet's ERC-20 approvals **and Permit2 sub-allowances**, revoke them one at a time or all at once — and **sweep dust balances into USDC**.
 
 **Live: https://dustsweep-eight.vercel.app**
 
@@ -14,7 +14,8 @@ Approval hygiene for Base: scan a wallet's ERC-20 approvals **and Permit2 sub-al
 - **USD exposure (Chainlink)** — finite allowances show their dollar value from on-chain Chainlink feeds (Base mainnet). Only curated tokens are priced — a pasted token spoofing a known symbol gets no value — and rounds older than the slowest feed heartbeat are dropped rather than displayed.
 - **Wrong-network guard** — writes are pinned to the selected chain; a mismatch banner offers a one-click switch.
 - **Mainnet safety** — Base mainnet revokes stay disabled behind an explicit arm checkbox.
-- **ERC-8021 attribution** — every revoke carries the registered builder code `bc_9a7f6zpz` as a calldata suffix.
+- **Dust sweep (Uniswap V3)** — token balances under $5 are pre-selected and swapped into USDC in one batched confirmation: exact-amount approve + `exactInputSingle` per token, best fee tier picked by live QuoterV2 quotes across all four tiers, 1% slippage floor. The exact-amount approval is fully consumed by the swap — an approval-hygiene tool must not create lingering approvals.
+- **ERC-8021 attribution** — every revoke and sweep carries the registered builder code `bc_9a7f6zpz` as a calldata suffix.
 
 ## Chains
 
